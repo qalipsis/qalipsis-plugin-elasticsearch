@@ -1,0 +1,21 @@
+{
+  "settings": {
+    "index": {
+      "number_of_shards": 1
+    }
+  },
+  "mappings": {
+    "properties": {
+      "timestamp": {
+        "type": "date",
+        "format": "date_time||date_time_no_millis"
+      },
+      "device": {
+        "type": "keyword"
+      },
+      "eventname": {
+        "type": "keyword"
+      }
+    }
+  }
+}

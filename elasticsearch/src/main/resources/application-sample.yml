@@ -1,0 +1,25 @@
+monitoring:
+  elasticsearch:
+    hosts: http://localhost:9200
+    enabled: false
+    step: PT1M
+    index: qalipsis-metrics
+    indexDateFormat: yyyy-MM-dd
+    autoCreateIndex: true
+
+events:
+  export:
+    elasticsearch:
+      enabled: false
+      minLevel: INFO
+      urls: http://localhost:9200
+      indexPrefix: qalipsis-events
+      indexDatePattern: yyyy-MM-dd
+      durationAsNano: false
+      lingerPeriod: 10s
+      batchSize: 2000
+      publishers: 1
+      username:
+      password:
+      shards: 1
+      replicas: 0

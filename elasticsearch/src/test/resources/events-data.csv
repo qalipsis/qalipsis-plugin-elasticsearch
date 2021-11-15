@@ -1,0 +1,39 @@
+2020-10-20T12:34:21Z,Car #1,Ignition on
+2020-10-20T12:34:21Z,Car #2,Ignition on
+2020-10-20T12:34:21Z,Truck #1,Ignition on
+2020-10-20T12:35:08Z,Car #1,Engine on
+2020-10-20T12:35:08Z,Car #2,Engine on
+2020-10-20T12:35:08Z,Truck #1,Engine on
+2020-10-20T12:36:08Z,Car #1,Driving
+2020-10-20T12:36:08Z,Car #2,Driving
+2020-10-20T12:36:08Z,Truck #1,Driving
+2020-10-20T12:38:56Z,Car #1,Leaving office geofence
+2020-10-20T12:38:56Z,Car #2,Leaving office geofence
+2020-10-20T12:38:56Z,Truck #1,Leaving office geofence
+2020-10-20T12:40:14Z,Car #1,Driving over 30 kmh
+2020-10-20T12:40:14Z,Car #2,Driving over 30 kmh
+2020-10-20T12:40:14Z,Truck #1,Driving over 30 kmh
+2020-10-20T12:44:16Z,Car #1,Driving over 50 kmh
+2020-10-20T12:44:16Z,Car #2,Driving over 50 kmh
+2020-10-20T12:44:16Z,Truck #1,Driving over 50 kmh
+2020-10-20T12:45:32Z,Car #1,Short stop
+2020-10-20T12:45:32Z,Car #2,Short stop
+2020-10-20T12:45:32Z,Truck #1,Short stop
+2020-10-20T12:47:16Z,Car #1,Driving
+2020-10-20T12:47:16Z,Car #2,Driving
+2020-10-20T12:47:16Z,Truck #1,Driving
+2020-10-20T12:49:22Z,Car #1,Driving over 30 kmh
+2020-10-20T12:49:22Z,Car #2,Driving over 30 kmh
+2020-10-20T12:49:22Z,Truck #1,Driving over 30 kmh
+2020-10-20T12:51:12Z,Car #1,Driving over 50 kmh
+2020-10-20T12:51:12Z,Car #2,Driving over 50 kmh
+2020-10-20T12:51:12Z,Truck #1,Driving over 50 kmh
+2020-10-20T12:58:48Z,Car #1,Stop
+2020-10-20T12:58:48Z,Car #2,Stop
+2020-10-20T12:58:48Z,Truck #1,Stop
+2020-10-20T12:59:07Z,Car #1,Engine off
+2020-10-20T12:59:07Z,Car #2,Engine off
+2020-10-20T12:59:07Z,Truck #1,Engine off
+2020-10-20T12:59:08Z,Car #1,Ignition off
+2020-10-20T12:59:08Z,Car #2,Ignition off
+2020-10-20T12:59:08Z,Truck #1,Ignition off

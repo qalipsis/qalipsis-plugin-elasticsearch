@@ -8,7 +8,6 @@ import io.aerisconsulting.catadioptre.getProperty
 import io.mockk.confirmVerified
 import io.qalipsis.api.context.StepContext
 import io.qalipsis.api.steps.DummyStepSpecification
-import io.qalipsis.plugins.elasticsearch.ElasticsearchSearchMetricsConfiguration
 import io.qalipsis.plugins.elasticsearch.elasticsearch
 import io.qalipsis.test.mockk.relaxedMockk
 import kotlinx.coroutines.test.runBlockingTest
@@ -36,14 +35,6 @@ internal class ElasticsearchSearchStepSpecificationImplTest {
             prop(ElasticsearchSearchStepSpecificationImpl<*>::convertFullDocument).isFalse()
             prop(ElasticsearchSearchStepSpecificationImpl<*>::targetClass).isEqualTo(Map::class)
             prop(ElasticsearchSearchStepSpecificationImpl<*>::fetchAll).isFalse()
-            prop(ElasticsearchSearchStepSpecificationImpl<*>::metrics).all {
-                prop(ElasticsearchSearchMetricsConfiguration::receivedSuccessBytesCount).isFalse()
-                prop(ElasticsearchSearchMetricsConfiguration::receivedFailureBytesCount).isFalse()
-                prop(ElasticsearchSearchMetricsConfiguration::receivedDocumentsCount).isFalse()
-                prop(ElasticsearchSearchMetricsConfiguration::timeToResponse).isFalse()
-                prop(ElasticsearchSearchMetricsConfiguration::successCount).isFalse()
-                prop(ElasticsearchSearchMetricsConfiguration::failureCount).isFalse()
-            }
         }
         val mapperConfigurer = previousStep.nextSteps[0].getProperty<(JsonMapper) -> Unit>("mapper")
         val jsonMapper = relaxedMockk<JsonMapper>()
@@ -85,7 +76,7 @@ internal class ElasticsearchSearchStepSpecificationImplTest {
             index(indicesFactory)
             query(queryFactory)
             queryParameters(paramsFactory)
-            metrics {
+            monitoring {
                 all()
             }
             fetchAll()
@@ -101,14 +92,6 @@ internal class ElasticsearchSearchStepSpecificationImplTest {
             prop(ElasticsearchSearchStepSpecificationImpl<*>::convertFullDocument).isFalse()
             prop(ElasticsearchSearchStepSpecificationImpl<*>::targetClass).isEqualTo(Map::class)
             prop(ElasticsearchSearchStepSpecificationImpl<*>::fetchAll).isTrue()
-            prop(ElasticsearchSearchStepSpecificationImpl<*>::metrics).all {
-                prop(ElasticsearchSearchMetricsConfiguration::receivedSuccessBytesCount).isTrue()
-                prop(ElasticsearchSearchMetricsConfiguration::receivedFailureBytesCount).isTrue()
-                prop(ElasticsearchSearchMetricsConfiguration::receivedDocumentsCount).isTrue()
-                prop(ElasticsearchSearchMetricsConfiguration::timeToResponse).isTrue()
-                prop(ElasticsearchSearchMetricsConfiguration::successCount).isTrue()
-                prop(ElasticsearchSearchMetricsConfiguration::failureCount).isTrue()
-            }
         }
     }
 

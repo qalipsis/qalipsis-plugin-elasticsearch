@@ -2,15 +2,21 @@ package io.qalipsis.plugins.elasticsearch.query
 
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.node.ObjectNode
+import io.micrometer.core.instrument.Counter
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.Tags
+import io.micrometer.core.instrument.Timer
 import io.qalipsis.api.context.StepContext
 import io.qalipsis.api.context.StepError
 import io.qalipsis.api.context.StepId
 import io.qalipsis.api.context.StepStartStopContext
+import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.api.logging.LoggerHelper.logger
 import io.qalipsis.api.retry.RetryPolicy
 import io.qalipsis.api.steps.AbstractStep
 import io.qalipsis.plugins.elasticsearch.ElasticsearchDocument
 import org.elasticsearch.client.RestClient
+import java.time.Duration
 
 /**
  * Implementation of a [io.qalipsis.api.steps.Step] able to perform any kind of query to fetch documents from Elasticsearch.
@@ -31,15 +37,48 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
     private val indicesFactory: suspend (ctx: StepContext<*, *>, input: I) -> List<String>,
     private val queryParamsFactory: suspend (ctx: StepContext<*, *>, input: I) -> Map<String, String?>,
     private val queryFactory: suspend (ctx: StepContext<*, *>, input: I) -> ObjectNode,
-    private val fetchAll: Boolean
+    private val fetchAll: Boolean,
+    private val meterRegistry: MeterRegistry?,
+    private val eventsLogger: EventsLogger?
 ) : AbstractStep<I, Pair<I, SearchResult<T>>>(id, retryPolicy) {
 
     private var restClient: RestClient? = null
 
+    private val eventPrefix = "elasticsearch.query"
+
+    private val meterPrefix: String = "elasticsearch-query"
+
+    private var meterTags: Tags? = null
+
+    private var receivedSuccessBytesCounter: Counter? = null
+
+    private var receivedFailureBytesCounter: Counter? = null
+
+    private var timeToResponse: Timer? = null
+
+    private var successCounter: Counter? = null
+
+    private var failureCounter: Counter? = null
+
     override suspend fun start(context: StepStartStopContext) {
         log.debug { "Starting step $id for campaign ${context.campaignId} of scenario ${context.scenarioId}" }
         restClient = restClientBuilder()
+
+        initMonitoringMetrics(context)
+
         log.debug { "Step $id for campaign ${context.campaignId} of scenario ${context.scenarioId} is started" }
+    }
+
+    private fun initMonitoringMetrics(context: StepStartStopContext) {
+        meterTags = context.toMetersTags()
+
+        meterRegistry?.apply {
+            receivedSuccessBytesCounter = meterRegistry.counter("${meterPrefix}-success-bytes", meterTags)
+            receivedFailureBytesCounter = meterRegistry.counter("${meterPrefix}-failure-bytes", meterTags)
+            timeToResponse = meterRegistry.timer("${meterPrefix}-ttr", meterTags)
+            successCounter = meterRegistry.counter("${meterPrefix}-success", meterTags)
+            failureCounter = meterRegistry.counter("${meterPrefix}-failure", meterTags)
+        }
     }
 
     override suspend fun stop(context: StepStartStopContext) {
@@ -48,11 +87,27 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
         kotlin.runCatching {
             restClient?.close()
         }
+        stopMonitoringMetrics()
         restClient = null
         log.debug { "Step $id for campaign ${context.campaignId} of scenario ${context.scenarioId} is stopped" }
     }
 
+    private fun stopMonitoringMetrics() {
+        meterRegistry?.apply {
+            remove(receivedSuccessBytesCounter)
+            remove(receivedFailureBytesCounter)
+            remove(timeToResponse)
+            remove(successCounter)
+            remove(failureCounter)
+            receivedSuccessBytesCounter = null
+            receivedFailureBytesCounter = null
+            timeToResponse = null
+            successCounter = null
+            failureCounter = null
+        }
+    }
     override suspend fun execute(context: StepContext<I, Pair<I, SearchResult<T>>>) {
+        val eventTags = context.toEventTags()
         try {
             val input = context.receive()
             val indices = indicesFactory(context, input)
@@ -61,7 +116,13 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
 
             log.debug { "Performing the request on Elasticsearch - indices: ${indices}, parameters: ${params}, query: ${query.toPrettyString()}" }
 
+            val startTime = System.nanoTime()
             val result = queryClient.execute(restClient!!, indices, query.toString(), params)
+            timeToResponse?.record(Duration.ofNanos(System.nanoTime() - startTime))
+
+            val totalBytes = result.results.map { it.value.toString().toByteArray().size }.sum()
+            val totalRecords = result.results.size.toDouble()
+
             val finalResult = if (fetchAll && result.isSuccess) {
                 val scrollDuration = params["scroll"]
                 val scrollId = result.scrollId
@@ -77,8 +138,20 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
                 result
             }
             if (finalResult.isSuccess) {
+                receivedSuccessBytesCounter?.increment(totalBytes.toDouble())
+                successCounter?.increment(totalRecords)
+                eventsLogger?.apply {
+                    info("${eventPrefix}.success.bytes", totalBytes, tags = eventTags)
+                    info("${eventPrefix}.success.records", totalRecords, tags = eventTags)
+                }
                 context.send(input to finalResult)
             } else {
+                receivedFailureBytesCounter?.increment(totalBytes.toDouble())
+                failureCounter?.increment(totalRecords)
+                eventsLogger?.apply {
+                    info("${eventPrefix}.failure.bytes", totalBytes, tags = eventTags)
+                    info("${eventPrefix}.failure.records", totalRecords, tags = eventTags)
+                }
                 context.addError(StepError(finalResult.failure!!))
             }
         } catch (e: Exception) {

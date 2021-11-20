@@ -6,10 +6,12 @@ import assertk.assertions.*
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.node.ObjectNode
 import io.aerisconsulting.catadioptre.setProperty
+import io.micrometer.core.instrument.MeterRegistry
 import io.mockk.*
 import io.mockk.impl.annotations.RelaxedMockK
 import io.qalipsis.api.context.StepContext
 import io.qalipsis.api.context.StepStartStopContext
+import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.plugins.elasticsearch.ElasticsearchDocument
 import io.qalipsis.test.assertk.prop
 import io.qalipsis.test.mockk.WithMockk
@@ -53,6 +55,12 @@ internal class ElasticsearchDocumentsQueryStepTest {
     @RelaxedMockK
     private lateinit var queryNode: ObjectNode
 
+    @RelaxedMockK
+    private lateinit var meterRegistry: MeterRegistry
+
+    @RelaxedMockK
+    private lateinit var eventsLogger: EventsLogger
+
     @Test
     @Timeout(2)
     internal fun `should create the rest client at start`() = runBlockingTest {
@@ -65,7 +73,9 @@ internal class ElasticsearchDocumentsQueryStepTest {
             indicesBuilder,
             queryParamsBuilder,
             queryBuilder,
-            false
+            false,
+            meterRegistry,
+            eventsLogger
         )
 
         // when
@@ -88,7 +98,9 @@ internal class ElasticsearchDocumentsQueryStepTest {
             indicesBuilder,
             queryParamsBuilder,
             queryBuilder,
-            false
+            false,
+            meterRegistry,
+            eventsLogger
         )
         step.setProperty("restClient", restClient)
 
@@ -134,11 +146,14 @@ internal class ElasticsearchDocumentsQueryStepTest {
             indicesBuilder,
             queryParamsBuilder,
             queryBuilder,
-            false
+            false,
+            meterRegistry,
+            eventsLogger
         )
         step.setProperty("restClient", restClient)
 
         // when
+        step.start(stepStartStopContext)
         step.execute(ctx)
         val (input, searchResult) = (ctx.output as Channel<Pair<Int, SearchResult<String>>>).receive()
 
@@ -198,10 +213,12 @@ internal class ElasticsearchDocumentsQueryStepTest {
             indicesBuilder,
             queryParamsBuilder,
             queryBuilder,
-            true
+            true,
+            meterRegistry,
+            eventsLogger
         )
         step.setProperty("restClient", restClient)
-
+        step.start(stepStartStopContext)
         // when
         step.execute(ctx)
         val (input, searchResult) = (ctx.output as Channel<Pair<Int, SearchResult<String>>>).receive()
@@ -265,7 +282,9 @@ internal class ElasticsearchDocumentsQueryStepTest {
             indicesBuilder,
             queryParamsBuilder,
             queryBuilder,
-            true
+            true,
+            meterRegistry,
+            eventsLogger
         )
         step.setProperty("restClient", restClient)
 
@@ -335,11 +354,14 @@ internal class ElasticsearchDocumentsQueryStepTest {
             indicesBuilder,
             queryParamsBuilder,
             queryBuilder,
-            true
+            true,
+            meterRegistry,
+            eventsLogger
         )
         step.setProperty("restClient", restClient)
 
         // when
+        step.start(stepStartStopContext)
         step.execute(ctx)
         val (input, searchResult) = (ctx.output as Channel<Pair<Int, SearchResult<String>>>).receive()
 
@@ -409,12 +431,14 @@ internal class ElasticsearchDocumentsQueryStepTest {
             indicesBuilder,
             queryParamsBuilder,
             queryBuilder,
-            true
+            true,
+            meterRegistry,
+            eventsLogger
         )
         step.setProperty("restClient", restClient)
 
         // when
-            step.execute(ctx)
+        step.execute(ctx)
 
         // then
         assertThat(ctx).all {

@@ -3,11 +3,11 @@ package io.qalipsis.plugins.elasticsearch.search
 import com.fasterxml.jackson.databind.json.JsonMapper
 import io.qalipsis.api.annotations.Spec
 import io.qalipsis.api.context.StepContext
+import io.qalipsis.api.steps.StepMonitoringConfiguration
 import io.qalipsis.api.steps.StepSpecification
 import io.qalipsis.plugins.elasticsearch.AbstractElasticsearchQueryStepSpecification
 import io.qalipsis.plugins.elasticsearch.Deserializable
 import io.qalipsis.plugins.elasticsearch.ElasticsearchDocument
-import io.qalipsis.plugins.elasticsearch.ElasticsearchSearchMetricsConfiguration
 import io.qalipsis.plugins.elasticsearch.ElasticsearchStepSpecification
 import io.qalipsis.plugins.elasticsearch.query.SearchResult
 import org.elasticsearch.client.RestClient
@@ -65,9 +65,9 @@ interface ElasticsearchSearchStepSpecification<I> : Deserializable<I, Map<String
     fun fetchAll()
 
     /**
-     * Configures the metrics of the poll step.
+     * Configures the monitoring.
      */
-    fun metrics(metricsConfiguration: ElasticsearchSearchMetricsConfiguration.() -> Unit)
+    fun monitoring(monitoringConfiguration: StepMonitoringConfiguration.() -> Unit)
 }
 
 /**
@@ -109,7 +109,7 @@ internal class ElasticsearchSearchStepSpecificationImpl<I> : AbstractElasticsear
  * @author Eric Jessé
  */
 fun <I> ElasticsearchStepSpecification<*, I, *>.search(
-        configurationBlock: ElasticsearchSearchStepSpecification<I>.() -> Unit
+    configurationBlock: ElasticsearchSearchStepSpecification<I>.() -> Unit
 ): Deserializable<I, Map<String, Any?>> {
     val step = ElasticsearchSearchStepSpecificationImpl<I>()
     step.configurationBlock()

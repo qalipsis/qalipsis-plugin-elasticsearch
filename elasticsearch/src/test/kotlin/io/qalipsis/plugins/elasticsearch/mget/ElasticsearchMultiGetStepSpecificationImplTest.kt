@@ -8,7 +8,6 @@ import io.aerisconsulting.catadioptre.getProperty
 import io.mockk.confirmVerified
 import io.qalipsis.api.context.StepContext
 import io.qalipsis.api.steps.DummyStepSpecification
-import io.qalipsis.plugins.elasticsearch.ElasticsearchSearchMetricsConfiguration
 import io.qalipsis.plugins.elasticsearch.elasticsearch
 import io.qalipsis.test.mockk.relaxedMockk
 import kotlinx.coroutines.test.runBlockingTest
@@ -36,14 +35,6 @@ internal class ElasticsearchMultiGetStepSpecificationImplTest {
             prop(ElasticsearchMultiGetStepSpecificationImpl<*>::paramsFactory).isNotNull()
             prop(ElasticsearchMultiGetStepSpecificationImpl<*>::convertFullDocument).isFalse()
             prop(ElasticsearchMultiGetStepSpecificationImpl<*>::targetClass).isEqualTo(Map::class)
-            prop(ElasticsearchMultiGetStepSpecificationImpl<*>::metrics).all {
-                prop(ElasticsearchSearchMetricsConfiguration::receivedSuccessBytesCount).isFalse()
-                prop(ElasticsearchSearchMetricsConfiguration::receivedFailureBytesCount).isFalse()
-                prop(ElasticsearchSearchMetricsConfiguration::receivedDocumentsCount).isFalse()
-                prop(ElasticsearchSearchMetricsConfiguration::timeToResponse).isFalse()
-                prop(ElasticsearchSearchMetricsConfiguration::successCount).isFalse()
-                prop(ElasticsearchSearchMetricsConfiguration::failureCount).isFalse()
-            }
         }
         val mapperConfigurer = previousStep.nextSteps[0].getProperty<(JsonMapper) -> Unit>("mapper")
         val jsonMapper = relaxedMockk<JsonMapper>()
@@ -52,7 +43,7 @@ internal class ElasticsearchMultiGetStepSpecificationImplTest {
 
         val paramsFactory =
             previousStep.nextSteps[0].getProperty<suspend (ctx: StepContext<*, *>, input: Int) -> Map<String, String?>>(
-                    "paramsFactory")
+                "paramsFactory")
         assertThat(paramsFactory(relaxedMockk(), relaxedMockk())).hasSize(0)
     }
 
@@ -69,7 +60,7 @@ internal class ElasticsearchMultiGetStepSpecificationImplTest {
             mapper(mapperConfigurer)
             query(queryFactory)
             queryParameters(paramsFactory)
-            metrics {
+            monitoring {
                 all()
             }
         }
@@ -82,14 +73,6 @@ internal class ElasticsearchMultiGetStepSpecificationImplTest {
             prop(ElasticsearchMultiGetStepSpecificationImpl<*>::paramsFactory).isSameAs(paramsFactory)
             prop(ElasticsearchMultiGetStepSpecificationImpl<*>::convertFullDocument).isFalse()
             prop(ElasticsearchMultiGetStepSpecificationImpl<*>::targetClass).isEqualTo(Map::class)
-            prop(ElasticsearchMultiGetStepSpecificationImpl<*>::metrics).all {
-                prop(ElasticsearchSearchMetricsConfiguration::receivedSuccessBytesCount).isTrue()
-                prop(ElasticsearchSearchMetricsConfiguration::receivedFailureBytesCount).isTrue()
-                prop(ElasticsearchSearchMetricsConfiguration::receivedDocumentsCount).isTrue()
-                prop(ElasticsearchSearchMetricsConfiguration::timeToResponse).isTrue()
-                prop(ElasticsearchSearchMetricsConfiguration::successCount).isTrue()
-                prop(ElasticsearchSearchMetricsConfiguration::failureCount).isTrue()
-            }
         }
     }
 

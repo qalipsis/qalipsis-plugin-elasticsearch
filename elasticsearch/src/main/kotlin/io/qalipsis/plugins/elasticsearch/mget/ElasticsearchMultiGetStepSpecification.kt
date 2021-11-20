@@ -3,11 +3,11 @@ package io.qalipsis.plugins.elasticsearch.mget
 import com.fasterxml.jackson.databind.json.JsonMapper
 import io.qalipsis.api.annotations.Spec
 import io.qalipsis.api.context.StepContext
+import io.qalipsis.api.steps.StepMonitoringConfiguration
 import io.qalipsis.api.steps.StepSpecification
 import io.qalipsis.plugins.elasticsearch.AbstractElasticsearchQueryStepSpecification
 import io.qalipsis.plugins.elasticsearch.Deserializable
 import io.qalipsis.plugins.elasticsearch.ElasticsearchDocument
-import io.qalipsis.plugins.elasticsearch.ElasticsearchSearchMetricsConfiguration
 import io.qalipsis.plugins.elasticsearch.ElasticsearchStepSpecification
 import io.qalipsis.plugins.elasticsearch.query.SearchResult
 import org.elasticsearch.client.RestClient
@@ -51,10 +51,9 @@ interface ElasticsearchMultiGetStepSpecification<I> : Deserializable<I, Map<Stri
     fun query(queryFactory: suspend MultiGetQueryBuilder.(ctx: StepContext<*, *>, input: I) -> Unit)
 
     /**
-     * Configures the metrics of the step.
+     * Configures the monitoring of the step.
      */
-    fun metrics(metricsConfiguration: ElasticsearchSearchMetricsConfiguration.() -> Unit)
-
+    fun monitoring(monitoringConfiguration: StepMonitoringConfiguration.() -> Unit)
 }
 
 /**
@@ -71,6 +70,7 @@ internal class ElasticsearchMultiGetStepSpecificationImpl<I> : AbstractElasticse
     override fun query(queryFactory: suspend MultiGetQueryBuilder.(ctx: StepContext<*, *>, input: I) -> Unit) {
         this.queryFactory = queryFactory
     }
+
 }
 
 /**
@@ -81,7 +81,7 @@ internal class ElasticsearchMultiGetStepSpecificationImpl<I> : AbstractElasticse
  * @author Eric Jessé
  */
 fun <I> ElasticsearchStepSpecification<*, I, *>.mget(
-        configurationBlock: ElasticsearchMultiGetStepSpecification<I>.() -> Unit
+    configurationBlock: ElasticsearchMultiGetStepSpecification<I>.() -> Unit
 ): Deserializable<I, Map<String, Any?>> {
     val step = ElasticsearchMultiGetStepSpecificationImpl<I>()
     step.configurationBlock()

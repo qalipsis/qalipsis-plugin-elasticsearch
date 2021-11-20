@@ -8,6 +8,7 @@ import io.micrometer.core.instrument.MeterRegistry
 import io.qalipsis.api.Executors
 import io.qalipsis.api.annotations.StepConverter
 import io.qalipsis.api.context.StepContext
+import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.api.steps.StepSpecification
 import io.qalipsis.api.steps.StepSpecificationConverter
 import io.qalipsis.plugins.elasticsearch.AbstractElasticsearchQueryStepSpecificationConverter
@@ -25,10 +26,12 @@ import kotlin.coroutines.CoroutineContext
 @StepConverter
 internal class ElasticsearchMultiGetStepSpecificationConverter(
     @Named(Executors.IO_EXECUTOR_NAME) ioCoroutineContext: CoroutineContext,
-    meterRegistry: MeterRegistry
+    meterRegistry: MeterRegistry,
+    eventsLogger: EventsLogger
 ) : AbstractElasticsearchQueryStepSpecificationConverter<ElasticsearchMultiGetStepSpecificationImpl<*>>(
     ioCoroutineContext,
-    meterRegistry
+    meterRegistry,
+    eventsLogger
 ) {
 
     override val endpoint = "_mget"

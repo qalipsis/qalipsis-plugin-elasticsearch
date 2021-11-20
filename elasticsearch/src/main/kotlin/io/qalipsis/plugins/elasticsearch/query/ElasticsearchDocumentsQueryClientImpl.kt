@@ -26,7 +26,7 @@ import kotlin.coroutines.CoroutineContext
  * Thread-safe client to search or send data from Elasticsearch.
  *
  * @property endpoint Elasticsearch function / endpoint to use, such as _mget, _search...
- * @property queryMetrics the metrics for the query operation
+ * @property queryMonitoring the metrics for the query operation
  * @property jsonMapper JSON mapper to interpret the results
  * @property documentsExtractor closure to extract the list of JSON documents as [ObjectNode] from the response body
  * @property converter closure to convert each JSON document as [ObjectNode] into the type expected by the user
@@ -38,7 +38,6 @@ import kotlin.coroutines.CoroutineContext
 internal class ElasticsearchDocumentsQueryClientImpl<T>(
     private val ioCoroutineContext: CoroutineContext,
     private val endpoint: String,
-    private val queryMetrics: ElasticsearchQueryMetrics,
     private val jsonMapper: JsonMapper,
     private val documentsExtractor: (JsonNode) -> List<ObjectNode>,
     private val converter: (ObjectNode) -> T
@@ -107,9 +106,7 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
             override fun onSuccess(response: Response) {
                 try {
                     processDocumentFetchingResponse(response, resultsSlot, requestStart)
-                    queryMetrics.countSuccess()
                 } catch (e: Exception) {
-                    queryMetrics.countFailure()
                     runBlocking(ioCoroutineContext) {
                         resultsSlot.set(SearchResult(failure = e))
                     }
@@ -117,10 +114,8 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
             }
 
             override fun onFailure(e: Exception) {
-                queryMetrics.countFailure()
                 runBlocking(ioCoroutineContext) {
                     if (e is ResponseException) {
-                        queryMetrics.countReceivedFailureBytes(e.response.entity.contentLength)
                         resultsSlot.set(
                             SearchResult(failure = ElasticsearchException(EntityUtils.toString(e.response.entity)))
                         )
@@ -141,9 +136,6 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
         response: Response, resultsSlot: ImmutableSlot<SearchResult<T>>,
         requestStartNanos: Long
     ) {
-        queryMetrics.recordTimeToResponse(System.nanoTime() - requestStartNanos)
-        queryMetrics.countReceivedSuccessBytes(response.entity.contentLength)
-
         val jsonResult = jsonMapper.readTree(EntityUtils.toString(response.entity))
         val cursor = if (jsonResult.hasNonNull("_scroll_id")) {
             jsonResult.get("_scroll_id").textValue()
@@ -164,7 +156,6 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
         val documentsNodes = documentsExtractor(jsonResult)
         val searchResult = if (documentsNodes.isNotEmpty()) {
             log.debug { "${documentsNodes.size} results were received" }
-            queryMetrics.countDocuments(documentsNodes.size)
 
             SearchResult(
                 totalResults = if (total > 0) total else documentsNodes.size,

@@ -20,7 +20,6 @@ import io.qalipsis.api.scenario.StepSpecificationRegistry
 import io.qalipsis.api.scenario.scenario
 import io.qalipsis.api.steps.SingletonConfiguration
 import io.qalipsis.api.steps.SingletonType
-import io.qalipsis.plugins.elasticsearch.ElasticsearchSearchMetricsConfiguration
 import io.qalipsis.plugins.elasticsearch.elasticsearch
 import io.qalipsis.test.mockk.relaxedMockk
 import org.apache.http.HttpHost
@@ -57,14 +56,6 @@ internal class ElasticsearchPollStepSpecificationImplTest {
                 containsExactly("_all")
             }
             prop(ElasticsearchPollStepSpecificationImpl::pollDelay).isEqualTo(Duration.ofSeconds(12))
-            prop(ElasticsearchPollStepSpecificationImpl::metrics).all {
-                prop(ElasticsearchSearchMetricsConfiguration::receivedSuccessBytesCount).isFalse()
-                prop(ElasticsearchSearchMetricsConfiguration::receivedFailureBytesCount).isFalse()
-                prop(ElasticsearchSearchMetricsConfiguration::receivedDocumentsCount).isFalse()
-                prop(ElasticsearchSearchMetricsConfiguration::timeToResponse).isFalse()
-                prop(ElasticsearchSearchMetricsConfiguration::successCount).isFalse()
-                prop(ElasticsearchSearchMetricsConfiguration::failureCount).isFalse()
-            }
             prop(ElasticsearchPollStepSpecificationImpl::singletonConfiguration).all {
                 prop(SingletonConfiguration::type).isEqualTo(SingletonType.UNICAST)
                 prop(SingletonConfiguration::bufferSize).isEqualTo(-1)
@@ -96,7 +87,7 @@ internal class ElasticsearchPollStepSpecificationImplTest {
             queryParameters("param-1" to "val-1", "param-2" to "val-2")
             query(queryBuilder)
             pollDelay(Duration.ofSeconds(12))
-            metrics { all() }
+            monitoring { all() }
             broadcast(123, Duration.ofSeconds(20))
         }
 
@@ -118,14 +109,6 @@ internal class ElasticsearchPollStepSpecificationImplTest {
                 containsExactly("index-1", "ind*2")
             }
             prop(ElasticsearchPollStepSpecificationImpl::pollDelay).isEqualTo(Duration.ofSeconds(12))
-            prop(ElasticsearchPollStepSpecificationImpl::metrics).all {
-                prop(ElasticsearchSearchMetricsConfiguration::receivedSuccessBytesCount).isTrue()
-                prop(ElasticsearchSearchMetricsConfiguration::receivedFailureBytesCount).isTrue()
-                prop(ElasticsearchSearchMetricsConfiguration::receivedDocumentsCount).isTrue()
-                prop(ElasticsearchSearchMetricsConfiguration::timeToResponse).isTrue()
-                prop(ElasticsearchSearchMetricsConfiguration::successCount).isTrue()
-                prop(ElasticsearchSearchMetricsConfiguration::failureCount).isTrue()
-            }
             prop(ElasticsearchPollStepSpecificationImpl::singletonConfiguration).all {
                 prop(SingletonConfiguration::type).isEqualTo(SingletonType.BROADCAST)
                 prop(SingletonConfiguration::bufferSize).isEqualTo(123)

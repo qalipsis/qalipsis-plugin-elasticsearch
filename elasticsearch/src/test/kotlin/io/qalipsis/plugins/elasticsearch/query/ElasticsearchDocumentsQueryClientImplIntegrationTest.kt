@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 import io.mockk.confirmVerified
 import io.mockk.every
 import io.mockk.verify
+import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.api.sync.SuspendedCountLatch
 import io.qalipsis.plugins.elasticsearch.AbstractElasticsearchIntegrationTest
 import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_6_IMAGE
@@ -53,8 +54,6 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
     @RegisterExtension
     val testDispatcherProvider = TestDispatcherProvider()
 
-    private val queryMetrics = relaxedMockk<ElasticsearchQueryMetrics>()
-
     private var initialized = false
 
     private val records =
@@ -94,14 +93,11 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
         testDispatcherProvider.run {
             // given
             val client = clientsByVersion[versionAndPort.version]!!
-            val countDownLatch = CountDownLatch(1)
-            every { queryMetrics.countSuccess() } answers { countDownLatch.countDown() }
 
             @Suppress("UNCHECKED_CAST")
             val queryClient = ElasticsearchDocumentsQueryClientImpl(
                 ioCoroutineContext = this.coroutineContext,
                 endpoint = "_search",
-                queryMetrics = queryMetrics,
                 jsonMapper = jsonMapper,
                 documentsExtractor = { (it.get("hits")?.get("hits") as ArrayNode).toList() as List<ObjectNode> },
                 converter = { jsonMapper.treeToValue(it.get("_source"), Event::class.java) }
@@ -116,27 +112,17 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
             )
 
             // then
-        assertThat(results).all {
-            prop(SearchResult<Event>::isSuccess).isTrue()
-            prop(SearchResult<Event>::totalResults).isEqualTo(26)
-            prop(SearchResult<Event>::results).all {
-                hasSize(26)
-                each { it.prop(ElasticsearchDocument<Event>::value).prop(Event::device).startsWith("Car ") }
+            assertThat(results).all {
+                prop(SearchResult<Event>::isSuccess).isTrue()
+                prop(SearchResult<Event>::totalResults).isEqualTo(26)
+                prop(SearchResult<Event>::results).all {
+                    hasSize(26)
+                    each { it.prop(ElasticsearchDocument<Event>::value).prop(Event::device).startsWith("Car ") }
+                }
+                prop(SearchResult<Event>::scrollId).isNull()
+                prop(SearchResult<Event>::searchAfterTieBreaker).isNull()
             }
-            prop(SearchResult<Event>::scrollId).isNull()
-            prop(SearchResult<Event>::searchAfterTieBreaker).isNull()
         }
-
-        countDownLatch.await()
-        verifyOnce {
-            queryMetrics.recordTimeToResponse(more(0L))
-            // Responses are slightly different with the versions.
-            queryMetrics.countReceivedSuccessBytes(or(range(4968L, 4973L), range(4994L, 4999L)))
-            queryMetrics.countDocuments(eq(26))
-            queryMetrics.countSuccess()
-        }
-        confirmVerified(queryMetrics)
-    }
 
     @ParameterizedTest(
         name = "should fetch the first page of the documents for the cars and return the cursor when a scroll time is set (ES {0})"
@@ -148,14 +134,11 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
     ) = testDispatcherProvider.run {
         // given
         val client = clientsByVersion[versionAndPort.version]!!
-        val latch = SuspendedCountLatch(1)
-        every { queryMetrics.countSuccess() } coAnswers { latch.decrement();null }
 
         @Suppress("UNCHECKED_CAST")
         val queryClient = ElasticsearchDocumentsQueryClientImpl(
             ioCoroutineContext = this.coroutineContext,
             endpoint = "_search",
-            queryMetrics = queryMetrics,
             jsonMapper = jsonMapper,
             documentsExtractor = { (it.get("hits")?.get("hits") as ArrayNode).toList() as List<ObjectNode> },
             converter = { jsonMapper.treeToValue(it.get("_source"), Event::class.java) }
@@ -178,17 +161,6 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
             prop(SearchResult<Event>::searchAfterTieBreaker).isNull()
         }
 
-        latch.await()
-        verify {
-            queryMetrics.recordTimeToResponse(more(0L))
-            // Responses are slightly different with the versions.
-            queryMetrics.countReceivedSuccessBytes(or(range(2079L, 2084L), range(2161L, 2166L)))
-            queryMetrics.countDocuments(eq(10))
-            queryMetrics.countSuccess()
-        }
-
-        // when
-        latch.reset()
         val scrollResults = queryClient.scroll(client, "10s", results.scrollId!!)
 
         // then
@@ -199,17 +171,6 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
             prop(SearchResult<Event>::scrollId).isNotNull()
             prop(SearchResult<Event>::searchAfterTieBreaker).isNull()
         }
-
-        latch.await()
-
-        verify {
-            queryMetrics.recordTimeToResponse(more(0L))
-            // Responses are slightly different with the versions.
-            queryMetrics.countReceivedSuccessBytes(or(range(2114L, 2119L), range(2196L, 2201L)))
-            queryMetrics.countDocuments(eq(10))
-            queryMetrics.countSuccess()
-        }
-        confirmVerified(queryMetrics)
 
         queryClient.clearScroll(client, results.scrollId!!)
     }
@@ -224,17 +185,15 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
     ) = testDispatcherProvider.run {
         // given
         val client = clientsByVersion[versionAndPort.version]!!
-        val countDownLatch = CountDownLatch(1)
-        every { queryMetrics.countSuccess() } answers { countDownLatch.countDown() }
 
         @Suppress("UNCHECKED_CAST")
         val queryClient = ElasticsearchDocumentsQueryClientImpl(
             ioCoroutineContext = this.coroutineContext,
             endpoint = "_search",
-            queryMetrics = queryMetrics,
             jsonMapper = jsonMapper,
             documentsExtractor = { (it.get("hits")?.get("hits") as ArrayNode).toList() as List<ObjectNode> },
             converter = { jsonMapper.treeToValue(it.get("_source"), Event::class.java) }
+
         )
 
         // when
@@ -257,16 +216,6 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
                 index(1).transform { it.textValue() }.isEqualTo("Car #2")
             }
         }
-
-        countDownLatch.await()
-        verify {
-            queryMetrics.recordTimeToResponse(more(0L))
-            // Responses are slightly different with the versions.
-            queryMetrics.countReceivedSuccessBytes(or(range(2332L, 2335L), range(2358L, 2362L)))
-            queryMetrics.countDocuments(eq(10))
-            queryMetrics.countSuccess()
-        }
-        confirmVerified(queryMetrics)
     }
 
     @ParameterizedTest(name = "should perform a multi get (ES {0})")
@@ -275,14 +224,11 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
     internal fun `should perform a multi get`(versionAndPort: ContainerVersionAndPort) = testDispatcherProvider.run {
         // given
         val client = clientsByVersion[versionAndPort.version]!!
-        val countDownLatch = CountDownLatch(1)
-        every { queryMetrics.countSuccess() } answers { countDownLatch.countDown() }
 
         @Suppress("UNCHECKED_CAST")
         val queryClient = ElasticsearchDocumentsQueryClientImpl(
             ioCoroutineContext = this.coroutineContext,
             endpoint = "_mget",
-            queryMetrics = queryMetrics,
             jsonMapper = jsonMapper,
             documentsExtractor = {
                 (it.get("docs") as ArrayNode).toList()
@@ -323,15 +269,6 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
             prop(SearchResult<Event>::scrollId).isNull()
             prop(SearchResult<Event>::searchAfterTieBreaker).isNull()
         }
-
-        countDownLatch.await()
-        verifyOnce {
-            queryMetrics.recordTimeToResponse(more(0L))
-            queryMetrics.countReceivedSuccessBytes(eq(788L))
-            queryMetrics.countDocuments(eq(3))
-            queryMetrics.countSuccess()
-        }
-        confirmVerified(queryMetrics)
     }
 
     @ParameterizedTest(name = "should generate a failure when the query is not valid (ES {0})")
@@ -341,14 +278,11 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
         testDispatcherProvider.run {
             // given
             val client = clientsByVersion[versionAndPort.version]!!
-            val countDownLatch = CountDownLatch(1)
-            every { queryMetrics.countFailure() } answers { countDownLatch.countDown() }
 
             @Suppress("UNCHECKED_CAST")
             val queryClient = ElasticsearchDocumentsQueryClientImpl(
                 ioCoroutineContext = this.coroutineContext,
                 endpoint = "_search",
-                queryMetrics = queryMetrics,
                 jsonMapper = jsonMapper,
                 documentsExtractor = { (it.get("hits")?.get("hits") as ArrayNode).toList() as List<ObjectNode> },
                 converter = { jsonMapper.treeToValue(it.get("_source"), Event::class.java) }
@@ -365,14 +299,6 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
                 prop(SearchResult<Event>::scrollId).isNull()
                 prop(SearchResult<Event>::searchAfterTieBreaker).isNull()
             }
-
-            countDownLatch.await()
-            verifyOnce {
-                queryMetrics.countFailure()
-                // Responses are slightly different with the versions.
-                queryMetrics.countReceivedFailureBytes(or(387L, 425L))
-            }
-            confirmVerified(queryMetrics)
         }
 
     data class Event(

@@ -8,23 +8,20 @@ import assertk.assertions.isEqualTo
 import assertk.assertions.prop
 import com.fasterxml.jackson.databind.node.ObjectNode
 import io.aerisconsulting.catadioptre.coInvokeInvisible
-import io.mockk.confirmVerified
+import io.micrometer.core.instrument.MeterRegistry
 import io.mockk.impl.annotations.RelaxedMockK
-import io.mockk.verifyOrder
+import io.qalipsis.api.context.StepStartStopContext
+import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.plugins.elasticsearch.AbstractElasticsearchIntegrationTest
 import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_6_IMAGE
 import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_7_IMAGE
-import io.qalipsis.plugins.elasticsearch.poll.catadioptre.init
-import io.qalipsis.plugins.elasticsearch.query.ElasticsearchQueryMetrics
 import io.qalipsis.test.coroutines.TestDispatcherProvider
 import io.qalipsis.test.io.readResource
 import io.qalipsis.test.io.readResourceLines
 import io.qalipsis.test.mockk.WithMockk
-import io.qalipsis.test.mockk.verifyOnce
 import kotlinx.coroutines.channels.Channel
 import org.apache.http.HttpHost
 import org.elasticsearch.client.RestClient
-import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.api.extension.RegisterExtension
 import org.junit.jupiter.params.ParameterizedTest
@@ -58,7 +55,13 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
         readResourceLines("events-data.csv").map { it.split(",") }.map { Event(Instant.parse(it[0]), it[1], it[2]) }
 
     @RelaxedMockK
-    private lateinit var queryMetrics: ElasticsearchQueryMetrics
+    private lateinit var meterRegistry: MeterRegistry
+
+    @RelaxedMockK
+    private lateinit var eventsLogger: EventsLogger
+
+    @RelaxedMockK
+    private lateinit var stepStartStopContext: StepStartStopContext
 
     /**
      * This tests imports all the data in the table in subsequent batches, but filter the values with a WHERE clause
@@ -94,10 +97,11 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
                 elasticsearchPollStatement = ElasticsearchPollStatementImpl {
                     jsonMapper.readTree(query) as ObjectNode
                 },
-                queryMetrics = queryMetrics,
                 jsonMapper = jsonMapper,
                 pollDelay = Duration.ofMillis(POLL_TIMEOUT),
-                resultsChannelFactory = { Channel(5) }
+                resultsChannelFactory = { Channel(5) },
+                meterRegistry = meterRegistry,
+                eventsLogger = eventsLogger
             )
             reader.init()
             `populate, read and assert`(
@@ -128,6 +132,7 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
 
         // when
         // Executes a first poll to verify that no empty set is provided.
+        reader.start(stepStartStopContext)
         reader.coInvokeInvisible<Unit>("poll", client)
 
         bulk(client, "events", firstBatch.map { DocumentWithId("${UUID.randomUUID()}", it.json) }, version < 7)
@@ -142,7 +147,6 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
         assertThat(count(client, "events")).isEqualTo(firstBatch.size + secondBatch.size + thirdBatch.size)
         reader.coInvokeInvisible<Unit>("poll", client)
 
-
         // then
         val firstFetchedBatch = reader.next()
         val secondFetchedBatch = reader.next()
@@ -151,34 +155,6 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
         assertEqualsForCarsOnly(firstFetchedBatch, firstBatch)
         assertEqualsForCarsOnly(secondFetchedBatch, secondBatch)
         assertEqualsForCarsOnly(thirdFetchedBatch, thirdBatch)
-
-
-        verifyOrder {
-            queryMetrics.recordTimeToResponse(more(0L))
-            // Responses are slightly different with the versions.
-            queryMetrics.countReceivedSuccessBytes(or(range(134L, 137L), range(160L, 163L)))
-            queryMetrics.countSuccess()
-
-            queryMetrics.recordTimeToResponse(more(0L))
-            // Responses are slightly different with the versions.
-            queryMetrics.countReceivedSuccessBytes(or(range(1881L, 1884L), range(1907L, 1910L)))
-            queryMetrics.countDocuments(eq(8))
-            queryMetrics.countSuccess()
-
-            queryMetrics.recordTimeToResponse(more(0L))
-            // Responses are slightly different with the versions.
-            queryMetrics.countReceivedSuccessBytes(or(range(2341L, 2344L), range(2367L, 2371L)))
-            queryMetrics.countDocuments(eq(10))
-            queryMetrics.countSuccess()
-
-            queryMetrics.recordTimeToResponse(more(0L))
-            // Responses are slightly different with the versions.
-            queryMetrics.countReceivedSuccessBytes(or(range(1871L, 1874L), range(1897L, 1900L)))
-            queryMetrics.countDocuments(eq(8))
-            queryMetrics.countSuccess()
-        }
-        confirmVerified(queryMetrics)
-
     }
 
     private fun assertEqualsForCarsOnly(fetched: List<ObjectNode>, inserted: List<Event>) {
@@ -195,62 +171,6 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
                 }
             }
     }
-
-
-    /**
-     * This tests imports all the data in the table in subsequent batches, but filter the values with a WHERE clause
-     * in the query to remove the ones for Truck #1.
-     */
-    @ParameterizedTest(name = "should monitor failures when there the query is invalid (ES {0})")
-    @MethodSource("containers")
-    @Timeout(20)
-    internal fun `should monitor failures when there the query is invalid`(versionAndPort: ContainerVersionAndPort) =
-        testDispatcherProvider.run {
-            // given
-            val query = """
-                {
-                    "query": {
-                        "not existing operator": {
-                            "device": "Car*"
-                        }
-                    },
-                    "sort":["timestamp","device"]
-                } """.trimIndent()
-            val channel = Channel<List<ObjectNode>>()
-            val reader = ElasticsearchIterativeReader(
-                ioCoroutineScope = this,
-                ioCoroutineContext = testDispatcherProvider.io(),
-                restClientBuilder = {
-                    RestClient.builder(HttpHost("localhost", versionAndPort.port, "http")).build()
-                },
-                index = "unexisting-events",
-                queryParams = mapOf("ignore_unavailable" to "true"),
-                elasticsearchPollStatement = ElasticsearchPollStatementImpl {
-                    jsonMapper.readTree(query) as ObjectNode
-                },
-                queryMetrics = queryMetrics,
-                jsonMapper = jsonMapper,
-                pollDelay = Duration.ofMillis(POLL_TIMEOUT),
-                resultsChannelFactory = { channel }
-            )
-            reader.init()
-            val client = RestClient.builder(HttpHost("localhost", versionAndPort.port, "http")).build()
-
-            // when
-            // Executes a first poll to verify that no empty set is provided.
-            reader.coInvokeInvisible<Unit>("poll", client)
-
-
-            // then
-            @Suppress("EXPERIMENTAL_API_USAGE")
-            Assertions.assertTrue(channel.isEmpty)
-            verifyOnce {
-                // Responses are slightly different with the versions.
-                queryMetrics.countReceivedFailureBytes(or(253L, 341L))
-                queryMetrics.countFailure()
-            }
-            confirmVerified(queryMetrics)
-        }
 
     data class Event(
         val timestamp: Instant,

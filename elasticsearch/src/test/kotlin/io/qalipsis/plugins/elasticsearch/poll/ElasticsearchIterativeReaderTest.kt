@@ -1,17 +1,17 @@
 package io.qalipsis.plugins.elasticsearch.poll
 
 import com.fasterxml.jackson.databind.json.JsonMapper
+import io.aerisconsulting.catadioptre.coInvokeInvisible
+import io.micrometer.core.instrument.MeterRegistry
 import io.mockk.clearMocks
 import io.mockk.coEvery
-import io.mockk.coVerify
 import io.mockk.confirmVerified
 import io.mockk.spyk
+import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.api.logging.LoggerHelper.logger
 import io.qalipsis.api.sync.SuspendedCountLatch
-import io.qalipsis.plugins.elasticsearch.query.ElasticsearchQueryMetrics
 import io.qalipsis.test.coroutines.TestDispatcherProvider
 import io.qalipsis.test.mockk.WithMockk
-import io.qalipsis.test.mockk.coVerifyExactly
 import io.qalipsis.test.mockk.coVerifyNever
 import io.qalipsis.test.mockk.relaxedMockk
 import io.qalipsis.test.mockk.verifyOnce
@@ -37,6 +37,9 @@ internal class ElasticsearchIterativeReaderTest {
 
     val elasticPollStatement: ElasticsearchPollStatement = relaxedMockk()
 
+    val meterRegistry: MeterRegistry = relaxedMockk()
+    val eventsLogger: EventsLogger = relaxedMockk()
+
     val restClient: RestClient = relaxedMockk()
 
     val restClientFactory: () -> RestClient = { restClient }
@@ -56,18 +59,18 @@ internal class ElasticsearchIterativeReaderTest {
                 "Any",
                 emptyMap(),
                 Duration.ofMillis(100),
-                ElasticsearchQueryMetrics(),
                 jsonMapper,
-                { Channel(1) }
-            ), recordPrivateCalls = true
+                { Channel(1) },
+                meterRegistry,
+                eventsLogger
+            )
         )
-        coEvery { reader["poll"](any<RestClient>()) } returns Unit
-
+        coEvery { reader.coInvokeInvisible<Unit>("poll", any<RestClient>()) } returns Unit
 
         // when + then
         Assertions.assertFalse(reader.hasNext())
         delay(200)
-        coVerifyNever { reader["poll"](any<RestClient>()) }
+        coVerifyNever { reader.coInvokeInvisible<Unit>("poll", any<RestClient>()) }
     }
 
     @Test
@@ -84,13 +87,13 @@ internal class ElasticsearchIterativeReaderTest {
                 "Any",
                 emptyMap(),
                 Duration.ofMillis(100),
-                ElasticsearchQueryMetrics(),
                 jsonMapper,
-                { Channel(1) }
-            ), recordPrivateCalls = true
+                { Channel(1) },
+                meterRegistry,
+                eventsLogger
+            )
         )
-        coEvery { reader["poll"](any<RestClient>()) } coAnswers { countDownLatch.decrement() }
-
+        coEvery { reader.coInvokeInvisible<Unit>("poll", any<RestClient>()) } coAnswers { countDownLatch.decrement() }
 
         // when
         reader.start(relaxedMockk())
@@ -99,9 +102,6 @@ internal class ElasticsearchIterativeReaderTest {
         Assertions.assertTrue(reader.hasNext())
         countDownLatch.await()
         verifyOnce { elasticPollStatement.reset() }
-        coVerify(atLeast = 3) {
-            reader["poll"](refEq(restClient))
-        }
         confirmVerified(elasticPollStatement)
     }
 
@@ -119,16 +119,16 @@ internal class ElasticsearchIterativeReaderTest {
                 "Any",
                 emptyMap(),
                 Duration.ofMillis(100),
-                ElasticsearchQueryMetrics(),
                 jsonMapper,
-                { Channel(1) }
-            ), recordPrivateCalls = true
+                { Channel(1) },
+                meterRegistry,
+                eventsLogger
+            )
         )
-        coEvery { reader["poll"](any<RestClient>()) } coAnswers {
+        coEvery { reader.coInvokeInvisible<Unit>("poll", any<RestClient>()) } coAnswers {
             countDownLatch.decrement()
             throw RuntimeException("")
         }
-
 
         // when
         reader.start(relaxedMockk())
@@ -137,9 +137,6 @@ internal class ElasticsearchIterativeReaderTest {
         countDownLatch.await()
         Assertions.assertTrue(reader.hasNext())
         verifyOnce { elasticPollStatement.reset() }
-        coVerify(atLeast = 3) {
-            reader["poll"](refEq(restClient))
-        }
         confirmVerified(elasticPollStatement)
     }
 
@@ -157,13 +154,13 @@ internal class ElasticsearchIterativeReaderTest {
                 "Any",
                 emptyMap(),
                 Duration.ofMillis(100),
-                ElasticsearchQueryMetrics(),
                 jsonMapper,
-                { Channel(1) }
-            ), recordPrivateCalls = true
+                { Channel(1) },
+                meterRegistry,
+                eventsLogger
+            )
         )
-        coEvery { reader["poll"](any<RestClient>()) } coAnswers { countDownLatch.decrement() }
-
+        coEvery { reader.coInvokeInvisible<Unit>("poll", any<RestClient>()) } coAnswers { countDownLatch.decrement() }
 
         // when
         reader.start(relaxedMockk())
@@ -171,9 +168,6 @@ internal class ElasticsearchIterativeReaderTest {
         // then
         countDownLatch.await()
         verifyOnce { elasticPollStatement.reset() }
-        coVerify(atLeast = 3) {
-            reader["poll"](refEq(restClient))
-        }
         clearMocks(reader, elasticPollStatement, answers = false)
 
         // when
@@ -183,7 +177,7 @@ internal class ElasticsearchIterativeReaderTest {
         verifyOnce { elasticPollStatement.reset() }
         Assertions.assertFalse(reader.hasNext())
         Thread.sleep(200)
-        coVerifyNever { reader["poll"](any<RestClient>()) }
+        coVerifyNever { reader.coInvokeInvisible<Unit>("poll", any<RestClient>()) }
     }
 
     @Test
@@ -203,12 +197,13 @@ internal class ElasticsearchIterativeReaderTest {
                 "Any",
                 emptyMap(),
                 Duration.ofMillis(100),
-                ElasticsearchQueryMetrics(),
                 jsonMapper,
-                { Channel(Channel.UNLIMITED) }
-            ), recordPrivateCalls = true
+                { Channel(Channel.UNLIMITED) },
+                meterRegistry,
+                eventsLogger
+            )
         )
-        coEvery { reader["poll"](any<RestClient>()) } coAnswers {
+        coEvery { reader.coInvokeInvisible<Unit>("poll", any<RestClient>()) } coAnswers {
             if (countDownLatch1.get() > 0) {
                 countDownLatch1.decrement()
             } else {
@@ -216,16 +211,12 @@ internal class ElasticsearchIterativeReaderTest {
             }
         }
 
-
         // when
         reader.start(relaxedMockk())
 
         // then
         verifyOnce { elasticPollStatement.reset() }
         countDownLatch1.await()
-        coVerifyExactly(3) {
-            reader["poll"](refEq(restClient))
-        }
         clearMocks(reader, elasticPollStatement, answers = false)
 
         // when
@@ -235,7 +226,6 @@ internal class ElasticsearchIterativeReaderTest {
         verifyOnce { elasticPollStatement.reset() }
         Assertions.assertFalse(reader.hasNext())
         delay(200)
-        coVerifyNever { reader["poll"](any<RestClient>()) }
         clearMocks(reader, elasticPollStatement, answers = false)
 
         // when
@@ -244,9 +234,6 @@ internal class ElasticsearchIterativeReaderTest {
         // then
         countDownLatch2.await()
         verifyOnce { elasticPollStatement.reset() }
-        coVerify(atLeast = 3) {
-            reader["poll"](refEq(restClient))
-        }
     }
 
     companion object {

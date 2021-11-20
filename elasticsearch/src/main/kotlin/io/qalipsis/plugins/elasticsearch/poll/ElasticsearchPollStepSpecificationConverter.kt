@@ -10,17 +10,15 @@ import io.micrometer.core.instrument.MeterRegistry
 import io.micronaut.jackson.modules.BeanIntrospectionModule
 import io.qalipsis.api.Executors
 import io.qalipsis.api.annotations.StepConverter
-import io.qalipsis.api.context.StepName
+import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.api.steps.StepCreationContext
 import io.qalipsis.api.steps.StepSpecification
 import io.qalipsis.api.steps.StepSpecificationConverter
 import io.qalipsis.api.steps.datasource.DatasourceObjectConverter
 import io.qalipsis.api.steps.datasource.IterativeDatasourceStep
 import io.qalipsis.api.steps.datasource.processors.NoopDatasourceObjectProcessor
-import io.qalipsis.plugins.elasticsearch.ElasticsearchSearchMetricsConfiguration
 import io.qalipsis.plugins.elasticsearch.converters.JsonObjectListBatchConverter
 import io.qalipsis.plugins.elasticsearch.converters.JsonObjectListSingleConverter
-import io.qalipsis.plugins.elasticsearch.query.ElasticsearchQueryMetrics
 import jakarta.inject.Named
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
@@ -36,7 +34,8 @@ import kotlin.coroutines.CoroutineContext
 internal class ElasticsearchPollStepSpecificationConverter(
     @Named(Executors.IO_EXECUTOR_NAME) private val ioCoroutineScope: CoroutineScope,
     @Named(Executors.IO_EXECUTOR_NAME) private val ioCoroutineContext: CoroutineContext,
-    private val meterRegistry: MeterRegistry
+    private val meterRegistry: MeterRegistry,
+    private val eventsLogger: EventsLogger
 ) : StepSpecificationConverter<ElasticsearchPollStepSpecificationImpl> {
 
     override fun support(stepSpecification: StepSpecification<*, *, *>): Boolean {
@@ -46,7 +45,6 @@ internal class ElasticsearchPollStepSpecificationConverter(
     override suspend fun <I, O> convert(creationContext: StepCreationContext<ElasticsearchPollStepSpecificationImpl>) {
         val spec = creationContext.stepSpecification
         val stepId = spec.name
-
         val mapper = buildMapper(spec)
         val sqlStatement = buildStatement(spec.queryFactory, mapper)
 
@@ -58,9 +56,10 @@ internal class ElasticsearchPollStepSpecificationConverter(
             spec.indices.joinToString(",") { it.trim() },
             spec.queryParameters,
             spec.pollDelay!!,
-            buildMetrics(stepId, spec.metrics),
             mapper,
-            { Channel(Channel.UNLIMITED) }
+            { Channel(Channel.UNLIMITED) },
+            meterRegistry.takeIf { spec.monitoringConfig.meters },
+            eventsLogger.takeIf { spec.monitoringConfig.events }
         )
         val step = IterativeDatasourceStep(
             stepId,
@@ -90,52 +89,7 @@ internal class ElasticsearchPollStepSpecificationConverter(
     }
 
     @KTestable
-    private fun buildMetrics(
-        stepId: StepName?,
-        metricsConfiguration: ElasticsearchSearchMetricsConfiguration
-    ): ElasticsearchQueryMetrics {
-        val receivedSuccessBytesCounter = if (metricsConfiguration.receivedSuccessBytesCount) {
-            meterRegistry.counter("elasticsearch-poll-success-bytes", "step", stepId)
-        } else {
-            null
-        }
-        val receivedFailureBytesCounter = if (metricsConfiguration.receivedFailureBytesCount) {
-            meterRegistry.counter("elasticsearch-poll-failure-bytes", "step", stepId)
-        } else {
-            null
-        }
-        val documentsCounter = if (metricsConfiguration.receivedDocumentsCount) {
-            meterRegistry.counter("elasticsearch-poll-documents", "step", stepId)
-        } else {
-            null
-        }
-        val timeToResponse = if (metricsConfiguration.timeToResponse) {
-            meterRegistry.timer("elasticsearch-poll-response-time", "step", stepId)
-        } else {
-            null
-        }
-        val successCounter = if (metricsConfiguration.successCount) {
-            meterRegistry.counter("elasticsearch-poll-success", "step", stepId)
-        } else {
-            null
-        }
-        val failureCounter = if (metricsConfiguration.failureCount) {
-            meterRegistry.counter("elasticsearch-poll-failure", "step", stepId)
-        } else {
-            null
-        }
-
-        return ElasticsearchQueryMetrics(
-            receivedSuccessBytesCounter = receivedSuccessBytesCounter,
-            receivedFailureBytesCounter = receivedFailureBytesCounter,
-            documentsCounter = documentsCounter,
-            timeToResponse = timeToResponse,
-            successCounter = successCounter,
-            failureCounter = failureCounter
-        )
-    }
-
-    private fun buildConverter(
+    fun buildConverter(
         spec: ElasticsearchPollStepSpecificationImpl,
         mapper: JsonMapper
     ): DatasourceObjectConverter<List<ObjectNode>, out Any> {

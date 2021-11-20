@@ -4,11 +4,15 @@ import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.node.ObjectNode
 import io.aerisconsulting.catadioptre.KTestable
+import io.micrometer.core.instrument.Counter
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.Tags
+import io.micrometer.core.instrument.Timer
 import io.qalipsis.api.context.StepStartStopContext
+import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.api.logging.LoggerHelper.logger
 import io.qalipsis.api.steps.datasource.DatasourceIterativeReader
 import io.qalipsis.api.sync.Latch
-import io.qalipsis.plugins.elasticsearch.query.ElasticsearchQueryMetrics
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -54,9 +58,10 @@ internal class ElasticsearchIterativeReader(
     private val index: String,
     private val queryParams: Map<String, String>,
     private val pollDelay: Duration,
-    private val queryMetrics: ElasticsearchQueryMetrics,
     private val jsonMapper: JsonMapper,
-    private val resultsChannelFactory: () -> Channel<List<ObjectNode>>
+    private val resultsChannelFactory: () -> Channel<List<ObjectNode>>,
+    private val meterRegistry: MeterRegistry?,
+    private val eventsLogger: EventsLogger?
 ) : DatasourceIterativeReader<List<ObjectNode>> {
 
     private var running = false
@@ -67,12 +72,47 @@ internal class ElasticsearchIterativeReader(
 
     private var resultsChannel: Channel<List<ObjectNode>>? = null
 
+    private val eventPrefix = "elasticsearch.poll"
+
+    private val meterPrefix: String = "elasticsearch-poll"
+
+    private var eventTags: Map<String, String>? = null
+
+    private var meterTags: Tags? = null
+
+    private var receivedSuccessBytesCounter: Counter? = null
+
+    private var receivedFailureBytesCounter: Counter? = null
+
+    private var timeToResponse: Timer? = null
+
+    private var successCounter: Counter? = null
+
+    private var documentsCounter: Counter? = null
+
+    private var failureCounter: Counter? = null
+
     override fun start(context: StepStartStopContext) {
         init()
         val restClient = restClientBuilder()
         running = true
+        initMonitoringMetrics(context)
         pollingJob = ioCoroutineScope.launch {
             startBackgroundPolling(restClient)
+        }
+    }
+
+    private fun initMonitoringMetrics(context: StepStartStopContext) {
+        meterTags = context.toMetersTags()
+        eventTags = context.toEventTags()
+
+        meterRegistry?.apply {
+            receivedSuccessBytesCounter = meterRegistry.counter("${meterPrefix}-success-bytes", meterTags)
+            receivedFailureBytesCounter = meterRegistry.counter("${meterPrefix}-failure-bytes", meterTags)
+            timeToResponse = meterRegistry.timer("${meterPrefix}-ttr", meterTags)
+            successCounter = meterRegistry.counter("${meterPrefix}-success", meterTags)
+            documentsCounter = meterRegistry.counter("${meterPrefix}-documents-success", meterTags)
+            failureCounter = meterRegistry.counter("${meterPrefix}-failure", meterTags)
         }
     }
 
@@ -89,7 +129,6 @@ internal class ElasticsearchIterativeReader(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    queryMetrics.countFailure()
                     // Logs the error but allow next poll.
                     log.error(e) { e.message }
                 } finally {
@@ -103,7 +142,7 @@ internal class ElasticsearchIterativeReader(
     }
 
     @KTestable
-    private fun init() {
+    fun init() {
         elasticsearchPollStatement.reset()
         resultsChannel = resultsChannelFactory()
     }
@@ -113,6 +152,7 @@ internal class ElasticsearchIterativeReader(
      *
      * @param restClient the active rest client
      */
+    @KTestable
     private suspend fun poll(restClient: RestClient) {
         val request = Request("GET", "/${index}/_search")
         request.addParameters(queryParams)
@@ -124,10 +164,17 @@ internal class ElasticsearchIterativeReader(
         requestCancellable = restClient.performRequestAsync(request, object : ResponseListener {
             override fun onSuccess(response: Response) {
                 try {
+                    timeToResponse?.record(Duration.ofNanos(System.currentTimeMillis() - requestStart))
+                    val totalBytes = response.entity.contentLength.toDouble()
+                    receivedSuccessBytesCounter?.increment(totalBytes)
+                    successCounter?.increment(1.0)
+                    eventsLogger?.info("${eventPrefix}.success.bytes", totalBytes, tags = eventTags!!)
                     processResponse(request, response, requestStart)
-                    queryMetrics.countSuccess()
                 } catch (e: Exception) {
-                    queryMetrics.countFailure()
+                    failureCounter?.increment(1.0)
+                    eventsLogger?.apply {
+                        info("${eventPrefix}.failure.records", 1.0, tags = eventTags!!)
+                    }
                     log.error(e) { e.message }
                 }
                 runBlocking(ioCoroutineContext) {
@@ -136,9 +183,15 @@ internal class ElasticsearchIterativeReader(
             }
 
             override fun onFailure(e: java.lang.Exception) {
-                queryMetrics.countFailure()
+                timeToResponse?.record(Duration.ofNanos(System.currentTimeMillis() - requestStart))
+                failureCounter?.increment(1.0)
                 if (e is ResponseException) {
-                    queryMetrics.countReceivedFailureBytes(e.response.entity.contentLength)
+                    val totalBytes = e.response.entity.contentLength.toDouble()
+                    receivedFailureBytesCounter?.increment(totalBytes)
+                    eventsLogger?.apply {
+                        info("${eventPrefix}.failure.bytes", totalBytes, tags = eventTags!!)
+                        info("${eventPrefix}.failure.records", 1.0, tags = eventTags!!)
+                    }
                     log.error { "Received error from the server: ${EntityUtils.toString(e.response.entity)}" }
                 } else {
                     log.error(e) { e.message }
@@ -152,15 +205,14 @@ internal class ElasticsearchIterativeReader(
     }
 
     private fun processResponse(request: Request, response: Response, requestStartNanos: Long) {
-        queryMetrics.recordTimeToResponse(System.nanoTime() - requestStartNanos)
-        queryMetrics.countReceivedSuccessBytes(response.entity.contentLength)
         val result = EntityUtils.toByteArray(response.entity)
         val jsonTree = jsonMapper.readTree(result)
         (jsonTree.get(HITS_FIELD)?.get(HITS_FIELD) as ArrayNode?)?.let { resultsNode ->
             if (!resultsNode.isEmpty) {
                 log.debug { "${resultsNode.size()} result(s) received" }
                 log.trace { "Received documents from request $request with source ${elasticsearchPollStatement.query}: ${resultsNode.joinToString { it.toPrettyString() }}" }
-                queryMetrics.countDocuments(resultsNode.size())
+                documentsCounter?.increment(resultsNode.size().toDouble())
+                eventsLogger?.info("${eventPrefix}.success.records", resultsNode.size(), tags = eventTags!!)
                 val results = resultsNode.map { it as ObjectNode }
                 resultsChannel!!.trySend(results).getOrThrow()
 
@@ -184,6 +236,25 @@ internal class ElasticsearchIterativeReader(
         }
         pollingJob = null
         elasticsearchPollStatement.reset()
+
+        stopMonitoringMetrics()
+    }
+
+    private fun stopMonitoringMetrics() {
+        meterRegistry?.apply {
+            remove(receivedSuccessBytesCounter)
+            remove(receivedFailureBytesCounter)
+            remove(timeToResponse)
+            remove(successCounter)
+            remove(failureCounter)
+            remove(documentsCounter)
+            receivedSuccessBytesCounter = null
+            receivedFailureBytesCounter = null
+            timeToResponse = null
+            successCounter = null
+            failureCounter = null
+            documentsCounter = null
+        }
     }
 
     override suspend fun hasNext(): Boolean {

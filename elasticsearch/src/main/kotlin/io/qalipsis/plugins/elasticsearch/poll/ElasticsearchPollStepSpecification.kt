@@ -8,11 +8,11 @@ import io.qalipsis.api.steps.BroadcastSpecification
 import io.qalipsis.api.steps.LoopableSpecification
 import io.qalipsis.api.steps.SingletonConfiguration
 import io.qalipsis.api.steps.SingletonType
+import io.qalipsis.api.steps.StepMonitoringConfiguration
 import io.qalipsis.api.steps.StepSpecification
 import io.qalipsis.api.steps.UnicastSpecification
 import io.qalipsis.plugins.elasticsearch.ElasticsearchDocument
 import io.qalipsis.plugins.elasticsearch.ElasticsearchScenarioSpecification
-import io.qalipsis.plugins.elasticsearch.ElasticsearchSearchMetricsConfiguration
 import io.qalipsis.plugins.elasticsearch.ElasticsearchStepSpecification
 import org.apache.http.HttpHost
 import org.elasticsearch.client.RestClient
@@ -83,9 +83,9 @@ interface ElasticsearchPollStepSpecification :
     fun pollDelay(delay: Duration)
 
     /**
-     * Configures the metrics of the poll step.
+     * Configures the monitoring of the poll step.
      */
-    fun metrics(metricsConfiguration: ElasticsearchSearchMetricsConfiguration.() -> Unit)
+    fun monitoring(monitoring: StepMonitoringConfiguration.() -> Unit)
 }
 
 /**
@@ -114,7 +114,7 @@ internal class ElasticsearchPollStepSpecificationImpl :
     @field:NotNull
     internal var pollDelay: Duration? = null
 
-    internal val metrics = ElasticsearchSearchMetricsConfiguration()
+    internal var monitoringConfig = StepMonitoringConfiguration()
 
     internal var flattenOutput = false
 
@@ -148,8 +148,8 @@ internal class ElasticsearchPollStepSpecificationImpl :
         this.pollDelay = delay
     }
 
-    override fun metrics(metricsConfiguration: ElasticsearchSearchMetricsConfiguration.() -> Unit) {
-        this.metrics.metricsConfiguration()
+    override fun monitoring(monitoring: StepMonitoringConfiguration.() -> Unit) {
+        monitoring.invoke(monitoringConfig)
     }
 
     override fun <O : Any> deserialize(targetClass: KClass<O>,
@@ -190,7 +190,7 @@ internal class ElasticsearchPollStepSpecificationImpl :
  * @author Eric Jessé
  */
 fun ElasticsearchScenarioSpecification.poll(
-        configurationBlock: ElasticsearchPollStepSpecification.() -> Unit
+    configurationBlock: ElasticsearchPollStepSpecification.() -> Unit
 ): PollDeserializable<Map<String, Any?>> {
     val step = ElasticsearchPollStepSpecificationImpl()
     step.configurationBlock()

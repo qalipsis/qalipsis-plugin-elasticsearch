@@ -3,6 +3,7 @@ package io.qalipsis.plugins.elasticsearch
 import com.fasterxml.jackson.databind.json.JsonMapper
 import io.qalipsis.api.context.StepContext
 import io.qalipsis.api.steps.AbstractStepSpecification
+import io.qalipsis.api.steps.StepMonitoringConfiguration
 import io.qalipsis.api.steps.StepSpecification
 import io.qalipsis.plugins.elasticsearch.query.SearchResult
 import org.apache.http.HttpHost
@@ -27,11 +28,11 @@ internal abstract class AbstractElasticsearchQueryStepSpecification<I> :
     internal open var paramsFactory: (suspend (ctx: StepContext<*, *>, input: I) -> Map<String, String?>) =
         { _, _ -> emptyMap() }
 
-    internal open val metrics = ElasticsearchSearchMetricsConfiguration()
-
     internal var convertFullDocument = false
 
     internal var targetClass: KClass<*> = Map::class
+
+    internal var monitoringConfig = StepMonitoringConfiguration()
 
     open fun client(client: () -> RestClient) {
         this.client = client
@@ -45,8 +46,8 @@ internal abstract class AbstractElasticsearchQueryStepSpecification<I> :
         this.paramsFactory = paramsFactory
     }
 
-    open fun metrics(metricsConfiguration: ElasticsearchSearchMetricsConfiguration.() -> Unit) {
-        this.metrics.metricsConfiguration()
+    open fun monitoring(monitoringConfiguration: StepMonitoringConfiguration.() -> Unit) {
+        this.monitoringConfig.monitoringConfiguration()
     }
 
     override fun <O : Any> deserialize(

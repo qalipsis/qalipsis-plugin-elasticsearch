@@ -9,12 +9,11 @@ import com.fasterxml.jackson.module.kotlin.KotlinModule
 import io.micrometer.core.instrument.MeterRegistry
 import io.micronaut.jackson.modules.BeanIntrospectionModule
 import io.qalipsis.api.context.StepContext
-import io.qalipsis.api.context.StepName
+import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.api.steps.StepCreationContext
 import io.qalipsis.api.steps.StepSpecificationConverter
 import io.qalipsis.plugins.elasticsearch.query.ElasticsearchDocumentsQueryClientImpl
 import io.qalipsis.plugins.elasticsearch.query.ElasticsearchDocumentsQueryStep
-import io.qalipsis.plugins.elasticsearch.query.ElasticsearchQueryMetrics
 import kotlin.coroutines.CoroutineContext
 import kotlin.reflect.KClass
 
@@ -28,6 +27,7 @@ import kotlin.reflect.KClass
 internal abstract class AbstractElasticsearchQueryStepSpecificationConverter<S : AbstractElasticsearchQueryStepSpecification<*>>(
     private val ioCoroutineContext: CoroutineContext,
     private val meterRegistry: MeterRegistry,
+    private val eventsLogger: EventsLogger
 ) : StepSpecificationConverter<S> {
 
     protected abstract val endpoint: String
@@ -36,10 +36,10 @@ internal abstract class AbstractElasticsearchQueryStepSpecificationConverter<S :
 
     override suspend fun <I, O> convert(creationContext: StepCreationContext<S>) {
         val spec = creationContext.stepSpecification
+
         val stepId = spec.name
         val jsonMapper = buildMapper(spec)
-        val searchMetrics = buildMetrics(stepId, spec.metrics)
-        val queryClient = buildQueryClient(spec, searchMetrics, jsonMapper)
+        val queryClient = buildQueryClient(spec, jsonMapper)
 
         @Suppress("UNCHECKED_CAST")
         val step = ElasticsearchDocumentsQueryStep(
@@ -50,7 +50,9 @@ internal abstract class AbstractElasticsearchQueryStepSpecificationConverter<S :
             indicesFactory = buildIndicesFactory(spec),
             queryParamsFactory = spec.paramsFactory as suspend (ctx: StepContext<*, *>, input: Any?) -> Map<String, String?>,
             queryFactory = buildQueryFactory(spec, jsonMapper),
-            fetchAll = fetchAll(spec)
+            fetchAll = fetchAll(spec),
+            meterRegistry = meterRegistry.takeIf { spec.monitoringConfig.meters },
+            eventsLogger = eventsLogger.takeIf { spec.monitoringConfig.events }
         )
         creationContext.createdStep(step)
     }
@@ -68,62 +70,16 @@ internal abstract class AbstractElasticsearchQueryStepSpecificationConverter<S :
     open fun fetchAll(spec: S) = false
 
     internal fun buildQueryClient(
-        spec: S, elasticsearchQueryMetrics: ElasticsearchQueryMetrics,
+        spec: S,
         jsonMapper: JsonMapper
     ): ElasticsearchDocumentsQueryClientImpl<Any?> {
 
         return ElasticsearchDocumentsQueryClientImpl(
             ioCoroutineContext = ioCoroutineContext,
             endpoint = endpoint,
-            queryMetrics = elasticsearchQueryMetrics,
             jsonMapper = jsonMapper,
             documentsExtractor = buildDocumentsExtractor(spec),
             converter = buildConverter(spec.targetClass, spec.convertFullDocument, jsonMapper)
-        )
-    }
-
-    internal fun buildMetrics(
-        stepId: StepName?,
-        metricsConfiguration: ElasticsearchSearchMetricsConfiguration
-    ): ElasticsearchQueryMetrics {
-        val receivedSuccessBytesCounter = if (metricsConfiguration.receivedSuccessBytesCount) {
-            meterRegistry.counter("elasticsearch-$metricsQualifier-success-bytes", "step", stepId)
-        } else {
-            null
-        }
-        val receivedFailureBytesCounter = if (metricsConfiguration.receivedFailureBytesCount) {
-            meterRegistry.counter("elasticsearch-$metricsQualifier-failure-bytes", "step", stepId)
-        } else {
-            null
-        }
-        val documentsCounter = if (metricsConfiguration.receivedDocumentsCount) {
-            meterRegistry.counter("elasticsearch-$metricsQualifier-documents", "step", stepId)
-        } else {
-            null
-        }
-        val timeToResponse = if (metricsConfiguration.timeToResponse) {
-            meterRegistry.timer("elasticsearch-$metricsQualifier-response-time", "step", stepId)
-        } else {
-            null
-        }
-        val successCounter = if (metricsConfiguration.successCount) {
-            meterRegistry.counter("elasticsearch-$metricsQualifier-success", "step", stepId)
-        } else {
-            null
-        }
-        val failureCounter = if (metricsConfiguration.failureCount) {
-            meterRegistry.counter("elasticsearch-$metricsQualifier-failure", "step", stepId)
-        } else {
-            null
-        }
-
-        return ElasticsearchQueryMetrics(
-            receivedSuccessBytesCounter = receivedSuccessBytesCounter,
-            receivedFailureBytesCounter = receivedFailureBytesCounter,
-            documentsCounter = documentsCounter,
-            timeToResponse = timeToResponse,
-            successCounter = successCounter,
-            failureCounter = failureCounter
         )
     }
 

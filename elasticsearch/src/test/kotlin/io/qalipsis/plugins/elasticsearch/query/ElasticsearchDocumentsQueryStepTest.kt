@@ -6,10 +6,12 @@ import assertk.assertions.*
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.node.ObjectNode
 import io.aerisconsulting.catadioptre.setProperty
+import io.micrometer.core.instrument.MeterRegistry
 import io.mockk.*
 import io.mockk.impl.annotations.RelaxedMockK
 import io.qalipsis.api.context.StepContext
 import io.qalipsis.api.context.StepStartStopContext
+import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.plugins.elasticsearch.ElasticsearchDocument
 import io.qalipsis.test.assertk.prop
 import io.qalipsis.test.mockk.WithMockk
@@ -53,6 +55,12 @@ internal class ElasticsearchDocumentsQueryStepTest {
     @RelaxedMockK
     private lateinit var queryNode: ObjectNode
 
+    @RelaxedMockK
+    private lateinit var meterRegistry: MeterRegistry
+
+    @RelaxedMockK
+    private lateinit var eventsLogger: EventsLogger
+
     @Test
     @Timeout(2)
     internal fun `should create the rest client at start`() = runBlockingTest {
@@ -65,7 +73,9 @@ internal class ElasticsearchDocumentsQueryStepTest {
             indicesBuilder,
             queryParamsBuilder,
             queryBuilder,
-            false
+            false,
+            meterRegistry,
+            eventsLogger
         )
 
         // when
@@ -88,7 +98,9 @@ internal class ElasticsearchDocumentsQueryStepTest {
             indicesBuilder,
             queryParamsBuilder,
             queryBuilder,
-            false
+            false,
+            meterRegistry,
+            eventsLogger
         )
         step.setProperty("restClient", restClient)
 
@@ -120,8 +132,13 @@ internal class ElasticsearchDocumentsQueryStepTest {
             ElasticsearchDocument("the-es-index", "_$i", index.toLong(), Instant.now(), "$i")
         }
         coEvery {
-            queryClient.execute(refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-query"),
-                eq(mapOf("param-1" to "value-1")))
+            queryClient.execute(
+                refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-query"),
+                eq(mapOf("param-1" to "value-1")),
+                any(),
+                eventsLogger,
+                any()
+            )
         } returns SearchResult(
             totalResults = 100,
             results = results
@@ -134,11 +151,14 @@ internal class ElasticsearchDocumentsQueryStepTest {
             indicesBuilder,
             queryParamsBuilder,
             queryBuilder,
-            false
+            false,
+            meterRegistry,
+            eventsLogger
         )
         step.setProperty("restClient", restClient)
 
         // when
+        step.start(stepStartStopContext)
         step.execute(ctx)
         val (input, searchResult) = (ctx.output as Channel<Pair<Int, SearchResult<String>>>).receive()
 
@@ -152,8 +172,13 @@ internal class ElasticsearchDocumentsQueryStepTest {
         }
 
         coVerifyOnce {
-            queryClient.execute(refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-query"),
-                eq(mapOf("param-1" to "value-1")))
+            queryClient.execute(
+                refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-query"),
+                eq(mapOf("param-1" to "value-1")),
+                any(),
+                eventsLogger,
+                any()
+            )
         }
         confirmVerified(queryClient)
     }
@@ -174,14 +199,24 @@ internal class ElasticsearchDocumentsQueryStepTest {
             ElasticsearchDocument("the-es-index", "_$i", index.toLong(), Instant.now(), "$i")
         }
         coEvery {
-            queryClient.execute(any(), any(), any(), any())
+            queryClient.execute(
+                any(), any(), any(), any(),
+                any(),
+                any(),
+                any()
+            )
         } returns SearchResult(
             totalResults = 100,
             results = results.subList(0, 3),
             scrollId = "the scroll ID"
         )
         coEvery {
-            queryClient.scroll(any(), any(), any())
+            queryClient.scroll(
+                any(), any(), any(),
+                any(),
+                any(),
+                any()
+            )
         } returns SearchResult(
             totalResults = 100,
             results = results.subList(3, 6),
@@ -198,10 +233,12 @@ internal class ElasticsearchDocumentsQueryStepTest {
             indicesBuilder,
             queryParamsBuilder,
             queryBuilder,
-            true
+            true,
+            meterRegistry,
+            eventsLogger
         )
         step.setProperty("restClient", restClient)
-
+        step.start(stepStartStopContext)
         // when
         step.execute(ctx)
         val (input, searchResult) = (ctx.output as Channel<Pair<Int, SearchResult<String>>>).receive()
@@ -221,10 +258,25 @@ internal class ElasticsearchDocumentsQueryStepTest {
         }
 
         coVerifyOnce {
-            queryClient.execute(refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-query"),
-                eq(mapOf("param-1" to "value-1", "scroll" to "the scroll duration")))
-            queryClient.scroll(refEq(restClient), eq("the scroll duration"), eq("the scroll ID"))
-            queryClient.scroll(refEq(restClient), eq("the scroll duration"), eq("the scroll ID 2"))
+            queryClient.execute(
+                refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-query"),
+                eq(mapOf("param-1" to "value-1", "scroll" to "the scroll duration")),
+                any(),
+                eventsLogger,
+                any()
+            )
+            queryClient.scroll(
+                refEq(restClient), eq("the scroll duration"), eq("the scroll ID"),
+                any(),
+                eventsLogger,
+                any()
+            )
+            queryClient.scroll(
+                refEq(restClient), eq("the scroll duration"), eq("the scroll ID 2"),
+                any(),
+                eventsLogger,
+                any()
+            )
         }
         confirmVerified(queryClient)
     }
@@ -246,14 +298,24 @@ internal class ElasticsearchDocumentsQueryStepTest {
             ElasticsearchDocument("the-es-index", "_$i", index.toLong(), Instant.now(), "$i")
         }
         coEvery {
-            queryClient.execute(any(), any(), any(), any())
+            queryClient.execute(
+                any(), any(), any(), any(),
+                any(),
+                any(),
+                any()
+            )
         } returns SearchResult(
             totalResults = 10,
             results = results.subList(0, 5),
             scrollId = "the scroll ID"
         )
         coEvery {
-            queryClient.scroll(any(), any(), any())
+            queryClient.scroll(
+                any(), any(), any(),
+                any(),
+                any(),
+                any()
+            )
         } returns SearchResult(
             failure = RuntimeException("")
         )
@@ -265,7 +327,9 @@ internal class ElasticsearchDocumentsQueryStepTest {
             indicesBuilder,
             queryParamsBuilder,
             queryBuilder,
-            true
+            true,
+            meterRegistry,
+            eventsLogger
         )
         step.setProperty("restClient", restClient)
 
@@ -279,9 +343,19 @@ internal class ElasticsearchDocumentsQueryStepTest {
         }
 
         coVerifyOnce {
-            queryClient.execute(refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-query"),
-                eq(mapOf("param-1" to "value-1", "scroll" to "the scroll duration")))
-            queryClient.scroll(refEq(restClient), eq("the scroll duration"), eq("the scroll ID"))
+            queryClient.execute(
+                refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-query"),
+                eq(mapOf("param-1" to "value-1", "scroll" to "the scroll duration")),
+                any(),
+                eventsLogger,
+                any()
+            )
+            queryClient.scroll(
+                refEq(restClient), eq("the scroll duration"), eq("the scroll ID"),
+                any(),
+                eventsLogger,
+                any()
+            )
             queryClient.clearScroll(refEq(restClient), eq("the scroll ID"))
         }
         confirmVerified(queryClient)
@@ -312,7 +386,12 @@ internal class ElasticsearchDocumentsQueryStepTest {
             every { isEmpty } returns false
         }
         coEvery {
-            queryClient.execute(any(), any(), any(), any())
+            queryClient.execute(
+                any(), any(), any(), any(),
+                any(),
+                any(),
+                any()
+            )
         } returns SearchResult(
             totalResults = 5,
             results = results.subList(0, 3),
@@ -335,11 +414,14 @@ internal class ElasticsearchDocumentsQueryStepTest {
             indicesBuilder,
             queryParamsBuilder,
             queryBuilder,
-            true
+            true,
+            meterRegistry,
+            eventsLogger
         )
         step.setProperty("restClient", restClient)
 
         // when
+        step.start(stepStartStopContext)
         step.execute(ctx)
         val (input, searchResult) = (ctx.output as Channel<Pair<Int, SearchResult<String>>>).receive()
 
@@ -358,17 +440,32 @@ internal class ElasticsearchDocumentsQueryStepTest {
         }
 
         coVerifyOrder {
-            queryClient.execute(refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-query"),
-                eq(mapOf("param-1" to "value-1")))
+            queryClient.execute(
+                refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-query"),
+                eq(mapOf("param-1" to "value-1")),
+                any(),
+                eventsLogger,
+                any()
+            )
 
             queryNode.set<ArrayNode>(eq("search_after"), refEq(searchBreaker1))
-            queryClient.execute(refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-second-query"),
-                eq(mapOf("param-1" to "value-1")))
+            queryClient.execute(
+                refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-second-query"),
+                eq(mapOf("param-1" to "value-1")),
+                any(),
+                eventsLogger,
+                any()
+            )
 
             queryNode.remove("search_after")
             queryNode.set<ArrayNode>(eq("search_after"), refEq(searchBreaker2))
-            queryClient.execute(refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-third-query"),
-                eq(mapOf("param-1" to "value-1")))
+            queryClient.execute(
+                refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-third-query"),
+                eq(mapOf("param-1" to "value-1")),
+                any(),
+                eventsLogger,
+                any()
+            )
         }
         confirmVerified(queryClient)
     }
@@ -393,7 +490,12 @@ internal class ElasticsearchDocumentsQueryStepTest {
             every { isEmpty } returns false
         }
         coEvery {
-            queryClient.execute(any(), any(), any(), any())
+            queryClient.execute(
+                any(), any(), any(), any(),
+                any(),
+                eventsLogger,
+                any()
+            )
         } returns SearchResult(
             totalResults = 5,
             results = results.subList(0, 3),
@@ -409,12 +511,14 @@ internal class ElasticsearchDocumentsQueryStepTest {
             indicesBuilder,
             queryParamsBuilder,
             queryBuilder,
-            true
+            true,
+            meterRegistry,
+            eventsLogger
         )
         step.setProperty("restClient", restClient)
 
         // when
-            step.execute(ctx)
+        step.execute(ctx)
 
         // then
         assertThat(ctx).all {
@@ -423,12 +527,22 @@ internal class ElasticsearchDocumentsQueryStepTest {
         }
 
         coVerifyOnce {
-            queryClient.execute(refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-query"),
-                eq(mapOf("param-1" to "value-1")))
+            queryClient.execute(
+                refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-query"),
+                eq(mapOf("param-1" to "value-1")),
+                any(),
+                eventsLogger,
+                any()
+            )
 
             queryNode.set<ArrayNode>(eq("search_after"), refEq(searchBreaker))
-            queryClient.execute(refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-second-query"),
-                eq(mapOf("param-1" to "value-1")))
+            queryClient.execute(
+                refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-second-query"),
+                eq(mapOf("param-1" to "value-1")),
+                any(),
+                eventsLogger,
+                any()
+            )
         }
         confirmVerified(queryClient)
     }

@@ -2,14 +2,20 @@ package io.qalipsis.plugins.elasticsearch.query
 
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.node.ObjectNode
+import io.micrometer.core.instrument.Counter
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.Tags
+import io.micrometer.core.instrument.Timer
 import io.qalipsis.api.context.StepContext
 import io.qalipsis.api.context.StepError
 import io.qalipsis.api.context.StepId
 import io.qalipsis.api.context.StepStartStopContext
+import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.api.logging.LoggerHelper.logger
 import io.qalipsis.api.retry.RetryPolicy
 import io.qalipsis.api.steps.AbstractStep
 import io.qalipsis.plugins.elasticsearch.ElasticsearchDocument
+import io.qalipsis.plugins.elasticsearch.query.model.ElasticsearchDocumentsQueryMetrics
 import org.elasticsearch.client.RestClient
 
 /**
@@ -31,15 +37,59 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
     private val indicesFactory: suspend (ctx: StepContext<*, *>, input: I) -> List<String>,
     private val queryParamsFactory: suspend (ctx: StepContext<*, *>, input: I) -> Map<String, String?>,
     private val queryFactory: suspend (ctx: StepContext<*, *>, input: I) -> ObjectNode,
-    private val fetchAll: Boolean
+    private val fetchAll: Boolean,
+    private val meterRegistry: MeterRegistry?,
+    private val eventsLogger: EventsLogger?
 ) : AbstractStep<I, Pair<I, SearchResult<T>>>(id, retryPolicy) {
 
     private var restClient: RestClient? = null
 
+    private val meterPrefix: String = "elasticsearch-query"
+
+    private var meterTags: Tags? = null
+
+    private var receivedSuccessBytesCounter: Counter? = null
+
+    private var receivedFailureBytesCounter: Counter? = null
+
+    private var timeToResponse: Timer? = null
+
+    private var successCounter: Counter? = null
+
+    private var failureCounter: Counter? = null
+
+    private var documentsCounter: Counter? = null
+
+    private var elasticsearchDocumentsQueryMetrics: ElasticsearchDocumentsQueryMetrics? = null
+
     override suspend fun start(context: StepStartStopContext) {
         log.debug { "Starting step $id for campaign ${context.campaignId} of scenario ${context.scenarioId}" }
         restClient = restClientBuilder()
+
+        initMonitoringMetrics(context)
+
         log.debug { "Step $id for campaign ${context.campaignId} of scenario ${context.scenarioId} is started" }
+    }
+
+    private fun initMonitoringMetrics(context: StepStartStopContext) {
+        meterTags = context.toMetersTags()
+
+        meterRegistry?.apply {
+            receivedSuccessBytesCounter = meterRegistry.counter("${meterPrefix}-success-bytes", meterTags)
+            receivedFailureBytesCounter = meterRegistry.counter("${meterPrefix}-failure-bytes", meterTags)
+            timeToResponse = meterRegistry.timer("${meterPrefix}-ttr", meterTags)
+            successCounter = meterRegistry.counter("${meterPrefix}-success", meterTags)
+            failureCounter = meterRegistry.counter("${meterPrefix}-failure", meterTags)
+            documentsCounter = meterRegistry.counter("${meterPrefix}-documents", meterTags)
+            elasticsearchDocumentsQueryMetrics = ElasticsearchDocumentsQueryMetrics(
+                receivedSuccessBytesCounter!!,
+                receivedFailureBytesCounter!!,
+                timeToResponse!!,
+                successCounter!!,
+                failureCounter!!,
+                documentsCounter!!
+            )
+        }
     }
 
     override suspend fun stop(context: StepStartStopContext) {
@@ -48,11 +98,29 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
         kotlin.runCatching {
             restClient?.close()
         }
+        stopMonitoringMetrics()
         restClient = null
         log.debug { "Step $id for campaign ${context.campaignId} of scenario ${context.scenarioId} is stopped" }
     }
 
+    private fun stopMonitoringMetrics() {
+        meterRegistry?.apply {
+            remove(receivedSuccessBytesCounter)
+            remove(receivedFailureBytesCounter)
+            remove(timeToResponse)
+            remove(successCounter)
+            remove(failureCounter)
+            remove(documentsCounter)
+            receivedSuccessBytesCounter = null
+            receivedFailureBytesCounter = null
+            timeToResponse = null
+            successCounter = null
+            failureCounter = null
+            documentsCounter = null
+        }
+    }
     override suspend fun execute(context: StepContext<I, Pair<I, SearchResult<T>>>) {
+        val eventTags = context.toEventTags()
         try {
             val input = context.receive()
             val indices = indicesFactory(context, input)
@@ -61,15 +129,24 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
 
             log.debug { "Performing the request on Elasticsearch - indices: ${indices}, parameters: ${params}, query: ${query.toPrettyString()}" }
 
-            val result = queryClient.execute(restClient!!, indices, query.toString(), params)
+            val result = queryClient.execute(
+                restClient!!,
+                indices,
+                query.toString(),
+                params,
+                elasticsearchDocumentsQueryMetrics,
+                eventsLogger,
+                eventTags
+            )
+
             val finalResult = if (fetchAll && result.isSuccess) {
                 val scrollDuration = params["scroll"]
                 val scrollId = result.scrollId
                 if (!scrollDuration.isNullOrBlank() && !scrollId.isNullOrBlank()) {
-                    scroll(result.results, scrollDuration, scrollId)
+                    scroll(result.results, scrollDuration, scrollId, eventTags)
                 } else if (result.searchAfterTieBreaker?.isEmpty == false) {
                     query.set<ArrayNode>("search_after", result.searchAfterTieBreaker)
-                    searchAfter(result.results, indices, query, params)
+                    searchAfter(result.results, indices, query, params, eventTags)
                 } else {
                     result
                 }
@@ -91,7 +168,8 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
      */
     private suspend fun scroll(
         firstQueryResults: List<ElasticsearchDocument<T>>, scrollDuration: String,
-        scrollId: String
+        scrollId: String,
+        eventTags: Map<String, String>
     ): SearchResult<T> {
         val allResults = mutableListOf<ElasticsearchDocument<T>>()
         allResults.addAll(firstQueryResults)
@@ -102,7 +180,14 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
 
         try {
             while (expectedResults > allResults.size && !queryScrollId.isNullOrBlank()) {
-                result = queryClient.scroll(restClient!!, scrollDuration, queryScrollId)
+                result = queryClient.scroll(
+                    restClient!!,
+                    scrollDuration,
+                    queryScrollId,
+                    elasticsearchDocumentsQueryMetrics,
+                    eventsLogger,
+                    eventTags
+                )
                 if (result.isSuccess) {
                     allResults.addAll(result.results)
                     queryScrollId = result.scrollId
@@ -124,7 +209,8 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
     private suspend fun searchAfter(
         firstQueryResults: List<ElasticsearchDocument<T>>, indices: List<String>,
         query: ObjectNode,
-        parameters: Map<String, String?>
+        parameters: Map<String, String?>,
+        eventTags: Map<String, String>
     ): SearchResult<T> {
         val allResults = mutableListOf<ElasticsearchDocument<T>>()
         allResults.addAll(firstQueryResults)
@@ -135,7 +221,15 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
 
         while (expectedResults > allResults.size && hasTieBreaker) {
             // Fetched the next page.
-            result = queryClient.execute(restClient!!, indices, query.toString(), parameters)
+            result = queryClient.execute(
+                restClient!!,
+                indices,
+                query.toString(),
+                parameters,
+                elasticsearchDocumentsQueryMetrics,
+                eventsLogger,
+                eventTags
+            )
 
             if (result.isSuccess) {
                 allResults.addAll(result.results)

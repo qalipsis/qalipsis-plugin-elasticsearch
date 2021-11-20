@@ -13,8 +13,6 @@ import assertk.assertions.isSameAs
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
-import io.micrometer.core.instrument.Counter
-import io.micrometer.core.instrument.Timer
 import io.mockk.confirmVerified
 import io.mockk.every
 import io.mockk.impl.annotations.RelaxedMockK
@@ -25,14 +23,12 @@ import io.qalipsis.api.context.StepContext
 import io.qalipsis.api.retry.RetryPolicy
 import io.qalipsis.api.steps.StepCreationContext
 import io.qalipsis.api.steps.StepCreationContextImpl
-import io.qalipsis.plugins.elasticsearch.ElasticsearchSearchMetricsConfiguration
+import io.qalipsis.api.steps.StepMonitoringConfiguration
 import io.qalipsis.plugins.elasticsearch.query.ElasticsearchDocumentsQueryClientImpl
 import io.qalipsis.plugins.elasticsearch.query.ElasticsearchDocumentsQueryStep
-import io.qalipsis.plugins.elasticsearch.query.ElasticsearchQueryMetrics
 import io.qalipsis.test.assertk.prop
 import io.qalipsis.test.mockk.WithMockk
 import io.qalipsis.test.mockk.relaxedMockk
-import io.qalipsis.test.mockk.verifyOnce
 import io.qalipsis.test.steps.AbstractStepSpecificationConverterTest
 import kotlinx.coroutines.test.runBlockingTest
 import org.elasticsearch.client.RestClient
@@ -82,15 +78,6 @@ internal class ElasticsearchMultiGetStepSpecificationConverterTest :
     private lateinit var targetClass: KClass<*>
 
     @RelaxedMockK
-    private lateinit var queryMetrics: ElasticsearchQueryMetrics
-
-    @RelaxedMockK
-    private lateinit var counter: Counter
-
-    @RelaxedMockK
-    private lateinit var timer: Timer
-
-    @RelaxedMockK
     private lateinit var ioCoroutineContext: CoroutineContext
 
     @Test
@@ -115,12 +102,11 @@ internal class ElasticsearchMultiGetStepSpecificationConverterTest :
             it.queryParameters(paramsFactory)
         }
 
-        val spiedConverter = spyk(converter, recordPrivateCalls = true)
+        val spiedConverter = spyk(converter)
         every { spiedConverter.buildMapper(refEq(spec)) } returns jsonMapper
         every { spiedConverter.buildQueryFactory(refEq(spec), refEq(jsonMapper)) } returns queryFactory
-        every { spiedConverter.buildMetrics(eq("my-step"), refEq(spec.metrics)) } returns queryMetrics
         every {
-            spiedConverter.buildQueryClient(refEq(spec), refEq(queryMetrics), refEq(jsonMapper))
+            spiedConverter.buildQueryClient(refEq(spec), refEq(jsonMapper))
         } returns queryClient
         val creationContext = StepCreationContextImpl(scenarioSpecification, directedAcyclicGraph, spec)
 
@@ -135,7 +121,6 @@ internal class ElasticsearchMultiGetStepSpecificationConverterTest :
                 prop("id").isEqualTo("my-step")
                 prop("retryPolicy").isEqualTo(retryPolicy)
                 prop("restClientBuilder").isEqualTo(clientBuilder)
-                prop("queryClient").isSameAs(queryClient)
                 prop("queryParamsFactory").isEqualTo(paramsFactory)
                 prop("queryFactory").isSameAs(queryFactory)
             }
@@ -152,13 +137,11 @@ internal class ElasticsearchMultiGetStepSpecificationConverterTest :
             it.queryParameters(paramsFactory)
         }
 
-        val spiedConverter = spyk(converter, recordPrivateCalls = true)
+        val spiedConverter = spyk(converter)
         every { spiedConverter.buildMapper(refEq(spec)) } returns jsonMapper
         every { spiedConverter.buildQueryFactory(refEq(spec), refEq(jsonMapper)) } returns queryFactory
-        val stepIdSlot = slot<String>()
-        every { spiedConverter.buildMetrics(capture(stepIdSlot), refEq(spec.metrics)) } returns queryMetrics
         every {
-            spiedConverter.buildQueryClient(refEq(spec), refEq(queryMetrics), refEq(jsonMapper))
+            spiedConverter.buildQueryClient(refEq(spec), refEq(jsonMapper))
         } returns queryClient
         val creationContext = StepCreationContextImpl(scenarioSpecification, directedAcyclicGraph, spec)
 
@@ -170,10 +153,9 @@ internal class ElasticsearchMultiGetStepSpecificationConverterTest :
         // then
         creationContext.createdStep!!.let {
             assertThat(it).isInstanceOf(ElasticsearchDocumentsQueryStep::class).all {
-                prop("id").isEqualTo(stepIdSlot.captured)
+                prop("id").isNotNull()
                 prop("retryPolicy").isNull()
                 prop("restClientBuilder").isEqualTo(clientBuilder)
-                prop("queryClient").isSameAs(queryClient)
                 prop("queryParamsFactory").isEqualTo(paramsFactory)
                 prop("queryFactory").isSameAs(queryFactory)
             }
@@ -201,19 +183,18 @@ internal class ElasticsearchMultiGetStepSpecificationConverterTest :
             it.targetClass = targetClass
             it.convertFullDocument = true
         }
-        val spiedConverter = spyk(converter, recordPrivateCalls = true)
+        val spiedConverter = spyk(converter)
         every { spiedConverter.buildDocumentsExtractor(refEq(spec)) } returns documentExtractor
         every {
             spiedConverter.buildConverter(refEq(targetClass), eq(true), refEq(jsonMapper))
         } returns documentConverter
 
         // when
-        val queryClient = spiedConverter.buildQueryClient( spec, queryMetrics, jsonMapper)
+        val queryClient = spiedConverter.buildQueryClient(spec, jsonMapper)
 
         // then
         assertThat(queryClient).all {
             prop("endpoint").isEqualTo("_mget")
-            prop("queryMetrics").isSameAs(queryMetrics)
             prop("jsonMapper").isSameAs(jsonMapper)
             prop("documentsExtractor").isSameAs(documentExtractor)
             prop("converter").isSameAs(documentConverter)
@@ -228,19 +209,18 @@ internal class ElasticsearchMultiGetStepSpecificationConverterTest :
             it.targetClass = targetClass
             it.convertFullDocument = false
         }
-        val spiedConverter = spyk(converter, recordPrivateCalls = true)
+        val spiedConverter = spyk(converter)
         every { spiedConverter.buildDocumentsExtractor(refEq(spec)) } returns documentExtractor
         every {
             spiedConverter.buildConverter(refEq(targetClass), eq(false), refEq(jsonMapper))
         } returns documentConverter
 
         // when
-        val queryClient = spiedConverter.buildQueryClient(spec, queryMetrics, jsonMapper)
+        val queryClient = spiedConverter.buildQueryClient(spec, jsonMapper)
 
         // then
         assertThat(queryClient).all {
             prop("endpoint").isEqualTo("_mget")
-            prop("queryMetrics").isSameAs(queryMetrics)
             prop("jsonMapper").isSameAs(jsonMapper)
             prop("documentsExtractor").isSameAs(documentExtractor)
             prop("converter").isSameAs(documentConverter)
@@ -298,169 +278,6 @@ internal class ElasticsearchMultiGetStepSpecificationConverterTest :
     }
 
     @Test
-    internal fun `should build the query metrics to record the bytes when success only`() {
-        // given
-        every { meterRegistry.counter("elasticsearch-mget-success-bytes", "step", "my-step") } returns counter
-
-        // when
-        val searchMetrics = converter.buildMetrics( "my-step", ElasticsearchSearchMetricsConfiguration(
-            receivedSuccessBytesCount = true
-        ))
-
-        // then
-        verifyOnce { meterRegistry.counter("elasticsearch-mget-success-bytes", "step", "my-step") }
-        assertThat(searchMetrics).all {
-            prop("receivedSuccessBytesCounter").isSameAs(counter)
-            prop("receivedFailureBytesCounter").isNull()
-            prop("documentsCounter").isNull()
-            prop("timeToResponse").isNull()
-            prop("successCounter").isNull()
-            prop("failureCounter").isNull()
-        }
-        confirmVerified(meterRegistry)
-    }
-
-    @Test
-    internal fun `should build the query metrics to record the records when failure only`() {
-        // given
-        every { meterRegistry.counter("elasticsearch-mget-failure-bytes", "step", "my-step") } returns counter
-
-        // when
-        val searchMetrics = converter.buildMetrics( "my-step",  ElasticsearchSearchMetricsConfiguration(
-            receivedFailureBytesCount = true
-        ))
-
-        // then
-        verifyOnce { meterRegistry.counter("elasticsearch-mget-failure-bytes", "step", "my-step") }
-        assertThat(searchMetrics).all {
-            prop("receivedSuccessBytesCounter").isNull()
-            prop("receivedFailureBytesCounter").isSameAs(counter)
-            prop("documentsCounter").isNull()
-            prop("timeToResponse").isNull()
-            prop("successCounter").isNull()
-            prop("failureCounter").isNull()
-        }
-        confirmVerified(meterRegistry)
-    }
-
-    @Test
-    internal fun `should build the query metrics to record the received documents`() {
-        // given
-        every { meterRegistry.counter("elasticsearch-mget-documents", "step", "my-step") } returns counter
-
-        // when
-        val searchMetrics = converter.buildMetrics( "my-step",  ElasticsearchSearchMetricsConfiguration(
-            receivedDocumentsCount = true
-        ))
-
-        // then
-        verifyOnce { meterRegistry.counter("elasticsearch-mget-documents", "step", "my-step") }
-        assertThat(searchMetrics).all {
-            prop("receivedSuccessBytesCounter").isNull()
-            prop("receivedFailureBytesCounter").isNull()
-            prop("documentsCounter").isSameAs(counter)
-            prop("timeToResponse").isNull()
-            prop("successCounter").isNull()
-            prop("failureCounter").isNull()
-        }
-        confirmVerified(meterRegistry)
-    }
-
-    @Test
-    internal fun `should build the query metrics to record the time to response only`() {
-        // given
-        every { meterRegistry.timer("elasticsearch-mget-response-time", "step", "my-step") } returns timer
-
-        // when
-        val searchMetrics = converter.buildMetrics( "my-step",  ElasticsearchSearchMetricsConfiguration(
-            timeToResponse = true
-        ))
-
-        // then
-        verifyOnce { meterRegistry.timer("elasticsearch-mget-response-time", "step", "my-step") }
-        assertThat(searchMetrics).all {
-            prop("receivedSuccessBytesCounter").isNull()
-            prop("receivedFailureBytesCounter").isNull()
-            prop("documentsCounter").isNull()
-            prop("timeToResponse").isSameAs(timer)
-            prop("successCounter").isNull()
-            prop("failureCounter").isNull()
-        }
-        confirmVerified(meterRegistry)
-    }
-
-    @Test
-    internal fun `should build the query metrics to record the successes only`() {
-        // given
-        every { meterRegistry.counter("elasticsearch-mget-success", "step", "my-step") } returns counter
-
-        // when
-        val searchMetrics = converter.buildMetrics( "my-step",  ElasticsearchSearchMetricsConfiguration(
-            successCount = true
-        ))
-
-        // then
-        verifyOnce { meterRegistry.counter("elasticsearch-mget-success", "step", "my-step") }
-        assertThat(searchMetrics).all {
-            prop("receivedSuccessBytesCounter").isNull()
-            prop("receivedFailureBytesCounter").isNull()
-            prop("documentsCounter").isNull()
-            prop("timeToResponse").isNull()
-            prop("successCounter").isSameAs(counter)
-            prop("failureCounter").isNull()
-        }
-        confirmVerified(meterRegistry)
-    }
-
-    @Test
-    internal fun `should build the query metrics to record the failures only`() {
-        // given
-        every { meterRegistry.counter("elasticsearch-mget-failure", "step", "my-step") } returns counter
-
-        // when
-        val searchMetrics = converter.buildMetrics( "my-step",  ElasticsearchSearchMetricsConfiguration(
-            failureCount = true
-        ))
-
-        // then
-        verifyOnce { meterRegistry.counter("elasticsearch-mget-failure", "step", "my-step") }
-        assertThat(searchMetrics).all {
-            prop("receivedSuccessBytesCounter").isNull()
-            prop("receivedFailureBytesCounter").isNull()
-            prop("documentsCounter").isNull()
-            prop("timeToResponse").isNull()
-            prop("successCounter").isNull()
-            prop("failureCounter").isSameAs(counter)
-        }
-        confirmVerified(meterRegistry)
-    }
-
-    @Test
-    internal fun `should build the query metrics with all the metrics`() {
-        // when
-        val searchMetrics = converter.buildMetrics( "my-step",  ElasticsearchSearchMetricsConfiguration(
-        ).also { it.all() })
-
-        // then
-        verifyOnce { meterRegistry.counter("elasticsearch-mget-success-bytes", "step", "my-step") }
-        verifyOnce { meterRegistry.counter("elasticsearch-mget-failure-bytes", "step", "my-step") }
-        verifyOnce { meterRegistry.counter("elasticsearch-mget-documents", "step", "my-step") }
-        verifyOnce { meterRegistry.timer("elasticsearch-mget-response-time", "step", "my-step") }
-        verifyOnce { meterRegistry.counter("elasticsearch-mget-success", "step", "my-step") }
-        verifyOnce { meterRegistry.counter("elasticsearch-mget-failure", "step", "my-step") }
-
-        assertThat(searchMetrics).all {
-            prop("receivedSuccessBytesCounter").isNotNull()
-            prop("receivedFailureBytesCounter").isNotNull()
-            prop("documentsCounter").isNotNull()
-            prop("timeToResponse").isNotNull()
-            prop("successCounter").isNotNull()
-            prop("failureCounter").isNotNull()
-        }
-        confirmVerified(meterRegistry)
-    }
-
-    @Test
     internal fun `should build the query builder`() = runBlockingTest {
         // given
         val jsonMapper = JsonMapper()
@@ -487,6 +304,86 @@ internal class ElasticsearchMultiGetStepSpecificationConverterTest :
                 """{"docs":[{"_index":"index-1","_id":"id-1","_source":true},{"_index":"index-2","_id":"id-2","_source":true}]}""")
         assertThat(contextSlot.captured).isSameAs(stepContext)
         assertThat(inputSlot.captured).isEqualTo(256)
+    }
+
+    @Test
+    fun `should add eventsLogger`() = runBlockingTest {
+        // given
+        val spec = ElasticsearchMultiGetStepSpecificationImpl<Int>().also {
+            it.name = "my-step"
+            it.retry(retryPolicy)
+            it.client(clientBuilder)
+            it.mapper(mapperConfigurer)
+            it.query(multiGetQueryBuilder)
+            it.queryParameters(paramsFactory)
+            it.monitoringConfig = StepMonitoringConfiguration(events = true)
+        }
+
+        val spiedConverter = spyk(converter)
+        every { spiedConverter.buildMapper(refEq(spec)) } returns jsonMapper
+        every { spiedConverter.buildQueryFactory(refEq(spec), refEq(jsonMapper)) } returns queryFactory
+        every {
+            spiedConverter.buildQueryClient(refEq(spec), refEq(jsonMapper))
+        } returns queryClient
+        val creationContext = StepCreationContextImpl(scenarioSpecification, directedAcyclicGraph, spec)
+
+        // when
+        @Suppress("UNCHECKED_CAST")
+        spiedConverter.convert<Int, Map<String, Any?>>(
+            creationContext as StepCreationContext<ElasticsearchMultiGetStepSpecificationImpl<*>>)
+
+        // then
+        creationContext.createdStep!!.let {
+            assertThat(it).isInstanceOf(ElasticsearchDocumentsQueryStep::class).all {
+                prop("id").isEqualTo("my-step")
+                prop("eventsLogger").isEqualTo(eventsLogger)
+                prop("meterRegistry").isNull()
+                prop("retryPolicy").isEqualTo(retryPolicy)
+                prop("restClientBuilder").isEqualTo(clientBuilder)
+                prop("queryParamsFactory").isEqualTo(paramsFactory)
+                prop("queryFactory").isSameAs(queryFactory)
+            }
+        }
+    }
+
+    @Test
+    fun `should add meterRegistry`() = runBlockingTest {
+        // given
+        val spec = ElasticsearchMultiGetStepSpecificationImpl<Int>().also {
+            it.name = "my-step"
+            it.retry(retryPolicy)
+            it.client(clientBuilder)
+            it.mapper(mapperConfigurer)
+            it.query(multiGetQueryBuilder)
+            it.queryParameters(paramsFactory)
+            it.monitoringConfig = StepMonitoringConfiguration(meters = true)
+        }
+
+        val spiedConverter = spyk(converter)
+        every { spiedConverter.buildMapper(refEq(spec)) } returns jsonMapper
+        every { spiedConverter.buildQueryFactory(refEq(spec), refEq(jsonMapper)) } returns queryFactory
+        every {
+            spiedConverter.buildQueryClient(refEq(spec), refEq(jsonMapper))
+        } returns queryClient
+        val creationContext = StepCreationContextImpl(scenarioSpecification, directedAcyclicGraph, spec)
+
+        // when
+        @Suppress("UNCHECKED_CAST")
+        spiedConverter.convert<Int, Map<String, Any?>>(
+            creationContext as StepCreationContext<ElasticsearchMultiGetStepSpecificationImpl<*>>)
+
+        // then
+        creationContext.createdStep!!.let {
+            assertThat(it).isInstanceOf(ElasticsearchDocumentsQueryStep::class).all {
+                prop("id").isEqualTo("my-step")
+                prop("eventsLogger").isNull()
+                prop("meterRegistry").isEqualTo(meterRegistry)
+                prop("retryPolicy").isEqualTo(retryPolicy)
+                prop("restClientBuilder").isEqualTo(clientBuilder)
+                prop("queryParamsFactory").isEqualTo(paramsFactory)
+                prop("queryFactory").isSameAs(queryFactory)
+            }
+        }
     }
 
 }

@@ -13,7 +13,6 @@ import io.qalipsis.api.context.StepContext
 import io.qalipsis.api.context.StepStartStopContext
 import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.plugins.elasticsearch.ElasticsearchDocument
-import io.qalipsis.plugins.elasticsearch.query.model.ElasticsearchDocumentsQueryMetrics
 import io.qalipsis.test.assertk.prop
 import io.qalipsis.test.mockk.WithMockk
 import io.qalipsis.test.mockk.coVerifyOnce
@@ -61,10 +60,6 @@ internal class ElasticsearchDocumentsQueryStepTest {
 
     @RelaxedMockK
     private lateinit var eventsLogger: EventsLogger
-
-    private val elasticsearchDocumentsQueryMetrics = relaxedMockk<ElasticsearchDocumentsQueryMetrics>()
-
-    private val eventTags = relaxedMockk<Map<String, String>>()
 
     @Test
     @Timeout(2)
@@ -139,9 +134,9 @@ internal class ElasticsearchDocumentsQueryStepTest {
         coEvery {
             queryClient.execute(refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-query"),
                 eq(mapOf("param-1" to "value-1")),
-                elasticsearchDocumentsQueryMetrics,
+                any(),
                 eventsLogger,
-                eventTags)
+                any())
         } returns SearchResult(
             totalResults = 100,
             results = results
@@ -177,9 +172,9 @@ internal class ElasticsearchDocumentsQueryStepTest {
         coVerifyOnce {
             queryClient.execute(refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-query"),
                 eq(mapOf("param-1" to "value-1")),
-                elasticsearchDocumentsQueryMetrics,
+                any(),
                 eventsLogger,
-                eventTags)
+                any())
         }
         confirmVerified(queryClient)
     }
@@ -201,9 +196,9 @@ internal class ElasticsearchDocumentsQueryStepTest {
         }
         coEvery {
             queryClient.execute(any(), any(), any(), any(),
-                elasticsearchDocumentsQueryMetrics,
-                eventsLogger,
-                eventTags)
+                any(),
+                any(),
+                any())
         } returns SearchResult(
             totalResults = 100,
             results = results.subList(0, 3),
@@ -211,9 +206,9 @@ internal class ElasticsearchDocumentsQueryStepTest {
         )
         coEvery {
             queryClient.scroll(any(), any(), any(),
-                elasticsearchDocumentsQueryMetrics,
-                eventsLogger,
-                eventTags)
+                any(),
+                any(),
+                any())
         } returns SearchResult(
             totalResults = 100,
             results = results.subList(3, 6),
@@ -257,17 +252,17 @@ internal class ElasticsearchDocumentsQueryStepTest {
         coVerifyOnce {
             queryClient.execute(refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-query"),
                 eq(mapOf("param-1" to "value-1", "scroll" to "the scroll duration")),
-                elasticsearchDocumentsQueryMetrics,
+                any(),
                 eventsLogger,
-                eventTags)
+                any())
             queryClient.scroll(refEq(restClient), eq("the scroll duration"), eq("the scroll ID"),
-                elasticsearchDocumentsQueryMetrics,
+                any(),
                 eventsLogger,
-                eventTags)
+                any())
             queryClient.scroll(refEq(restClient), eq("the scroll duration"), eq("the scroll ID 2"),
-                elasticsearchDocumentsQueryMetrics,
+                any(),
                 eventsLogger,
-                eventTags)
+                any())
         }
         confirmVerified(queryClient)
     }
@@ -290,9 +285,9 @@ internal class ElasticsearchDocumentsQueryStepTest {
         }
         coEvery {
             queryClient.execute(any(), any(), any(), any(),
-                elasticsearchDocumentsQueryMetrics,
-                eventsLogger,
-                eventTags)
+                any(),
+                any(),
+                any())
         } returns SearchResult(
             totalResults = 10,
             results = results.subList(0, 5),
@@ -300,9 +295,9 @@ internal class ElasticsearchDocumentsQueryStepTest {
         )
         coEvery {
             queryClient.scroll(any(), any(), any(),
-                elasticsearchDocumentsQueryMetrics,
-                eventsLogger,
-                eventTags)
+                any(),
+                any(),
+                any())
         } returns SearchResult(
             failure = RuntimeException("")
         )
@@ -332,13 +327,13 @@ internal class ElasticsearchDocumentsQueryStepTest {
         coVerifyOnce {
             queryClient.execute(refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-query"),
                 eq(mapOf("param-1" to "value-1", "scroll" to "the scroll duration")),
-                elasticsearchDocumentsQueryMetrics,
+                any(),
                 eventsLogger,
-                eventTags)
+                any())
             queryClient.scroll(refEq(restClient), eq("the scroll duration"), eq("the scroll ID"),
-                elasticsearchDocumentsQueryMetrics,
+                any(),
                 eventsLogger,
-                eventTags)
+                any())
             queryClient.clearScroll(refEq(restClient), eq("the scroll ID"))
         }
         confirmVerified(queryClient)
@@ -370,9 +365,9 @@ internal class ElasticsearchDocumentsQueryStepTest {
         }
         coEvery {
             queryClient.execute(any(), any(), any(), any(),
-                elasticsearchDocumentsQueryMetrics,
-                eventsLogger,
-                eventTags)
+                any(),
+                any(),
+                any())
         } returns SearchResult(
             totalResults = 5,
             results = results.subList(0, 3),
@@ -423,24 +418,24 @@ internal class ElasticsearchDocumentsQueryStepTest {
         coVerifyOrder {
             queryClient.execute(refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-query"),
                 eq(mapOf("param-1" to "value-1")),
-                elasticsearchDocumentsQueryMetrics,
+                any(),
                 eventsLogger,
-                eventTags)
+                any())
 
             queryNode.set<ArrayNode>(eq("search_after"), refEq(searchBreaker1))
             queryClient.execute(refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-second-query"),
                 eq(mapOf("param-1" to "value-1")),
-                elasticsearchDocumentsQueryMetrics,
+                any(),
                 eventsLogger,
-                eventTags)
+                any())
 
             queryNode.remove("search_after")
             queryNode.set<ArrayNode>(eq("search_after"), refEq(searchBreaker2))
             queryClient.execute(refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-third-query"),
                 eq(mapOf("param-1" to "value-1")),
-                elasticsearchDocumentsQueryMetrics,
+                any(),
                 eventsLogger,
-                eventTags)
+                any())
         }
         confirmVerified(queryClient)
     }
@@ -466,9 +461,9 @@ internal class ElasticsearchDocumentsQueryStepTest {
         }
         coEvery {
             queryClient.execute(any(), any(), any(), any(),
-                elasticsearchDocumentsQueryMetrics,
+                any(),
                 eventsLogger,
-                eventTags)
+                any())
         } returns SearchResult(
             totalResults = 5,
             results = results.subList(0, 3),
@@ -502,16 +497,16 @@ internal class ElasticsearchDocumentsQueryStepTest {
         coVerifyOnce {
             queryClient.execute(refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-query"),
                 eq(mapOf("param-1" to "value-1")),
-                elasticsearchDocumentsQueryMetrics,
+                any(),
                 eventsLogger,
-                eventTags)
+                any())
 
             queryNode.set<ArrayNode>(eq("search_after"), refEq(searchBreaker))
             queryClient.execute(refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-second-query"),
                 eq(mapOf("param-1" to "value-1")),
-                elasticsearchDocumentsQueryMetrics,
+                any(),
                 eventsLogger,
-                eventTags)
+                any())
         }
         confirmVerified(queryClient)
     }

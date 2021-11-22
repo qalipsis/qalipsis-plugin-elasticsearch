@@ -15,6 +15,7 @@ import io.qalipsis.api.logging.LoggerHelper.logger
 import io.qalipsis.api.retry.RetryPolicy
 import io.qalipsis.api.steps.AbstractStep
 import io.qalipsis.plugins.elasticsearch.ElasticsearchDocument
+import io.qalipsis.plugins.elasticsearch.query.model.ElasticsearchDocumentsQueryMetrics
 import org.elasticsearch.client.RestClient
 import java.time.Duration
 
@@ -44,8 +45,6 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
 
     private var restClient: RestClient? = null
 
-    private val eventPrefix = "elasticsearch.query"
-
     private val meterPrefix: String = "elasticsearch-query"
 
     private var meterTags: Tags? = null
@@ -59,6 +58,10 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
     private var successCounter: Counter? = null
 
     private var failureCounter: Counter? = null
+
+    private var documentsCounter: Counter? = null
+
+    private var elasticsearchDocumentsQueryMetrics: ElasticsearchDocumentsQueryMetrics? = null
 
     override suspend fun start(context: StepStartStopContext) {
         log.debug { "Starting step $id for campaign ${context.campaignId} of scenario ${context.scenarioId}" }
@@ -78,6 +81,8 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
             timeToResponse = meterRegistry.timer("${meterPrefix}-ttr", meterTags)
             successCounter = meterRegistry.counter("${meterPrefix}-success", meterTags)
             failureCounter = meterRegistry.counter("${meterPrefix}-failure", meterTags)
+            documentsCounter = meterRegistry.counter("${meterPrefix}-documents", meterTags)
+            elasticsearchDocumentsQueryMetrics = ElasticsearchDocumentsQueryMetrics(receivedSuccessBytesCounter!!, receivedFailureBytesCounter!!, timeToResponse!!, successCounter!!, failureCounter!!, documentsCounter!!)
         }
     }
 
@@ -99,11 +104,13 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
             remove(timeToResponse)
             remove(successCounter)
             remove(failureCounter)
+            remove(documentsCounter)
             receivedSuccessBytesCounter = null
             receivedFailureBytesCounter = null
             timeToResponse = null
             successCounter = null
             failureCounter = null
+            documentsCounter = null
         }
     }
     override suspend fun execute(context: StepContext<I, Pair<I, SearchResult<T>>>) {
@@ -116,9 +123,7 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
 
             log.debug { "Performing the request on Elasticsearch - indices: ${indices}, parameters: ${params}, query: ${query.toPrettyString()}" }
 
-            val startTime = System.nanoTime()
-            val result = queryClient.execute(restClient!!, indices, query.toString(), params)
-            timeToResponse?.record(Duration.ofNanos(System.nanoTime() - startTime))
+            val result = queryClient.execute(restClient!!, indices, query.toString(), params, elasticsearchDocumentsQueryMetrics, eventsLogger, eventTags)
 
             val totalBytes = result.results.map { it.value.toString().toByteArray().size }.sum()
             val totalRecords = result.results.size.toDouble()
@@ -127,10 +132,10 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
                 val scrollDuration = params["scroll"]
                 val scrollId = result.scrollId
                 if (!scrollDuration.isNullOrBlank() && !scrollId.isNullOrBlank()) {
-                    scroll(result.results, scrollDuration, scrollId)
+                    scroll(result.results, scrollDuration, scrollId, eventTags)
                 } else if (result.searchAfterTieBreaker?.isEmpty == false) {
                     query.set<ArrayNode>("search_after", result.searchAfterTieBreaker)
-                    searchAfter(result.results, indices, query, params)
+                    searchAfter(result.results, indices, query, params, eventTags)
                 } else {
                     result
                 }
@@ -138,20 +143,8 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
                 result
             }
             if (finalResult.isSuccess) {
-                receivedSuccessBytesCounter?.increment(totalBytes.toDouble())
-                successCounter?.increment(totalRecords)
-                eventsLogger?.apply {
-                    info("${eventPrefix}.success.bytes", totalBytes, tags = eventTags)
-                    info("${eventPrefix}.success.records", totalRecords, tags = eventTags)
-                }
                 context.send(input to finalResult)
             } else {
-                receivedFailureBytesCounter?.increment(totalBytes.toDouble())
-                failureCounter?.increment(totalRecords)
-                eventsLogger?.apply {
-                    info("${eventPrefix}.failure.bytes", totalBytes, tags = eventTags)
-                    info("${eventPrefix}.failure.records", totalRecords, tags = eventTags)
-                }
                 context.addError(StepError(finalResult.failure!!))
             }
         } catch (e: Exception) {
@@ -164,7 +157,8 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
      */
     private suspend fun scroll(
         firstQueryResults: List<ElasticsearchDocument<T>>, scrollDuration: String,
-        scrollId: String
+        scrollId: String,
+        eventTags: Map<String, String>
     ): SearchResult<T> {
         val allResults = mutableListOf<ElasticsearchDocument<T>>()
         allResults.addAll(firstQueryResults)
@@ -175,7 +169,7 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
 
         try {
             while (expectedResults > allResults.size && !queryScrollId.isNullOrBlank()) {
-                result = queryClient.scroll(restClient!!, scrollDuration, queryScrollId)
+                result = queryClient.scroll(restClient!!, scrollDuration, queryScrollId, elasticsearchDocumentsQueryMetrics, eventsLogger, eventTags)
                 if (result.isSuccess) {
                     allResults.addAll(result.results)
                     queryScrollId = result.scrollId
@@ -197,7 +191,8 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
     private suspend fun searchAfter(
         firstQueryResults: List<ElasticsearchDocument<T>>, indices: List<String>,
         query: ObjectNode,
-        parameters: Map<String, String?>
+        parameters: Map<String, String?>,
+        eventTags: Map<String, String>
     ): SearchResult<T> {
         val allResults = mutableListOf<ElasticsearchDocument<T>>()
         allResults.addAll(firstQueryResults)
@@ -208,7 +203,7 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
 
         while (expectedResults > allResults.size && hasTieBreaker) {
             // Fetched the next page.
-            result = queryClient.execute(restClient!!, indices, query.toString(), parameters)
+            result = queryClient.execute(restClient!!, indices, query.toString(), parameters, elasticsearchDocumentsQueryMetrics, eventsLogger, eventTags)
 
             if (result.isSuccess) {
                 allResults.addAll(result.results)

@@ -5,21 +5,17 @@ import assertk.assertThat
 import assertk.assertions.*
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.node.ObjectNode
-import io.mockk.confirmVerified
-import io.mockk.every
-import io.mockk.verify
 import io.qalipsis.api.events.EventsLogger
-import io.qalipsis.api.sync.SuspendedCountLatch
 import io.qalipsis.plugins.elasticsearch.AbstractElasticsearchIntegrationTest
 import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_6_IMAGE
 import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_7_IMAGE
 import io.qalipsis.plugins.elasticsearch.ElasticsearchDocument
+import io.qalipsis.plugins.elasticsearch.query.model.ElasticsearchDocumentsQueryMetrics
 import io.qalipsis.test.coroutines.TestDispatcherProvider
 import io.qalipsis.test.io.readResource
 import io.qalipsis.test.io.readResourceLines
 import io.qalipsis.test.mockk.WithMockk
 import io.qalipsis.test.mockk.relaxedMockk
-import io.qalipsis.test.mockk.verifyOnce
 import org.apache.http.HttpHost
 import org.elasticsearch.client.RestClient
 import org.junit.jupiter.api.AfterAll
@@ -35,7 +31,6 @@ import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.utility.DockerImageName
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import java.util.stream.Stream
@@ -53,6 +48,12 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
     @JvmField
     @RegisterExtension
     val testDispatcherProvider = TestDispatcherProvider()
+
+    private val eventsLogger = relaxedMockk<EventsLogger>()
+
+    private val elasticsearchDocumentsQueryMetrics = relaxedMockk<ElasticsearchDocumentsQueryMetrics>()
+
+    private val eventTags = relaxedMockk<Map<String, String>>()
 
     private var initialized = false
 
@@ -108,7 +109,10 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
                 client,
                 listOf("events"),
                 """{"query":{"bool":{"must":[{"match_all":{}}],"filter":[{"wildcard":{"device":"Car*"}}]}}}""",
-                mapOf("size" to "100")
+                mapOf("size" to "100"),
+                elasticsearchDocumentsQueryMetrics,
+                eventsLogger,
+                eventTags
             )
 
             // then
@@ -149,7 +153,10 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
             client,
             listOf("events"),
             """{"query":{"bool":{"must":[{"match_all":{}}],"filter":[{"wildcard":{"device":"Car*"}}]}}}""",
-            mapOf("scroll" to "10s", "size" to "10")
+            mapOf("scroll" to "10s", "size" to "10"),
+            elasticsearchDocumentsQueryMetrics,
+            eventsLogger,
+            eventTags
         )
 
         // then
@@ -161,7 +168,10 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
             prop(SearchResult<Event>::searchAfterTieBreaker).isNull()
         }
 
-        val scrollResults = queryClient.scroll(client, "10s", results.scrollId!!)
+        val scrollResults = queryClient.scroll(client, "10s", results.scrollId!!,
+            elasticsearchDocumentsQueryMetrics,
+            eventsLogger,
+            eventTags)
 
         // then
         assertThat(scrollResults).all {
@@ -201,7 +211,10 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
             client,
             listOf("events"),
             """{"query":{"bool":{"must":[{"match_all":{}}],"filter":[{"wildcard":{"device":"Car*"}}]}},"sort":["timestamp","device"]}""",
-            mapOf("size" to "10")
+            mapOf("size" to "10"),
+            elasticsearchDocumentsQueryMetrics,
+            eventsLogger,
+            eventTags
         )
 
         // then
@@ -245,6 +258,10 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
             client,
             listOf(),
             """{"docs":[{"_index":"events","_type":"_doc","_id":"${record1.id}"},{"_index":"events","_type":"_doc","_id":"${record2.id}"},{"_index":"events","_type":"_doc","_id":"${record3.id}"},{"_index":"events","_type":"_doc","_id":"does_not_exists"}]}""",
+            emptyMap(),
+            elasticsearchDocumentsQueryMetrics,
+            eventsLogger,
+            eventTags
         )
 
         // then
@@ -289,7 +306,10 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
             )
 
             // when
-            val results = queryClient.execute(client, listOf("unexisting-index"), "", emptyMap())
+            val results = queryClient.execute(client, listOf("unexisting-index"), "", emptyMap(),
+                elasticsearchDocumentsQueryMetrics,
+                eventsLogger,
+                eventTags)
 
             // then
             assertThat(results).all {

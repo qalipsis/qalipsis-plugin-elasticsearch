@@ -71,7 +71,7 @@ internal class ElasticsearchPollStepSpecificationConverter(
     }
 
     @KTestable
-    internal fun buildMapper(spec: ElasticsearchPollStepSpecificationImpl): JsonMapper {
+    private fun buildMapper(spec: ElasticsearchPollStepSpecificationImpl): JsonMapper {
         val mapper = JsonMapper()
         mapper.registerModule(BeanIntrospectionModule())
         mapper.registerModule(JavaTimeModule())

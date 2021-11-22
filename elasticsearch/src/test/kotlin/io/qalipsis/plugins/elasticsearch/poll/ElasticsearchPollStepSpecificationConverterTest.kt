@@ -111,7 +111,7 @@ internal class ElasticsearchPollStepSpecificationConverterTest :
             broadcast(123, Duration.ofSeconds(20))
         }
         val spiedConverter = spyk(converter)
-        every { spiedConverter.buildMapper(refEq(spec)) } returns mockedJsonMapper
+        every { spiedConverter["buildMapper"](refEq(spec)) } returns mockedJsonMapper
         every {
             spiedConverter["buildStatement"](refEq(mockedQueryFactory), refEq(mockedJsonMapper))
         } returns mockedElasticsearchPollStatement
@@ -302,7 +302,7 @@ internal class ElasticsearchPollStepSpecificationConverterTest :
             broadcast(123, Duration.ofSeconds(20))
         }
         val spiedConverter = spyk(converter)
-        every { spiedConverter.buildMapper(refEq(spec)) } returns mockedJsonMapper
+        every { spiedConverter["buildMapper"](refEq(spec)) } returns mockedJsonMapper
         every {
             spiedConverter["buildStatement"](refEq(mockedQueryFactory), refEq(mockedJsonMapper))
         } returns mockedElasticsearchPollStatement
@@ -369,7 +369,7 @@ internal class ElasticsearchPollStepSpecificationConverterTest :
             broadcast(123, Duration.ofSeconds(20))
         }
         val spiedConverter = spyk(converter)
-        every { spiedConverter.buildMapper(refEq(spec)) } returns mockedJsonMapper
+        every { spiedConverter["buildMapper"](refEq(spec)) } returns mockedJsonMapper
         every {
             spiedConverter["buildStatement"](refEq(mockedQueryFactory), refEq(mockedJsonMapper))
         } returns mockedElasticsearchPollStatement

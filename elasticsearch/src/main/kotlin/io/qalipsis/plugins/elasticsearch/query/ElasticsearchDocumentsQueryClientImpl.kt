@@ -4,11 +4,13 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.node.ObjectNode
+import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.api.lang.tryAndLog
 import io.qalipsis.api.logging.LoggerHelper.logger
 import io.qalipsis.api.sync.ImmutableSlot
 import io.qalipsis.plugins.elasticsearch.ElasticsearchDocument
 import io.qalipsis.plugins.elasticsearch.ElasticsearchException
+import io.qalipsis.plugins.elasticsearch.query.model.ElasticsearchDocumentsQueryMetrics
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.apache.http.util.EntityUtils
@@ -18,6 +20,7 @@ import org.elasticsearch.client.Response
 import org.elasticsearch.client.ResponseException
 import org.elasticsearch.client.ResponseListener
 import org.elasticsearch.client.RestClient
+import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.CoroutineContext
@@ -25,13 +28,11 @@ import kotlin.coroutines.CoroutineContext
 /**
  * Thread-safe client to search or send data from Elasticsearch.
  *
+ * @property ioCoroutineContext local coroutine context...
  * @property endpoint Elasticsearch function / endpoint to use, such as _mget, _search...
- * @property queryMonitoring the metrics for the query operation
  * @property jsonMapper JSON mapper to interpret the results
  * @property documentsExtractor closure to extract the list of JSON documents as [ObjectNode] from the response body
  * @property converter closure to convert each JSON document as [ObjectNode] into the type expected by the user
- * @property keyCounter thread-safe counter to assign a unique short-living key to each asynchronous request.
- * @property runningRequests currently running Elasticsearch requests keyed with a unique short-living key.
  *
  * @author Eric Jessé
  */
@@ -47,12 +48,17 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
 
     private val runningRequests: MutableMap<Long, Cancellable> = mutableMapOf()
 
+    private val eventPrefix = "elasticsearch.query"
+
     /**
      * Executes a search and returns the list of results. If an exception occurs while executing, it is thrown.
      */
     override suspend fun execute(
         restClient: RestClient, indices: List<String>, query: String,
-        parameters: Map<String, String?>
+        parameters: Map<String, String?>,
+        elasticsearchDocumentsQueryMetrics: ElasticsearchDocumentsQueryMetrics?,
+        eventsLogger: EventsLogger?,
+        eventTags: Map<String, String>
     ): SearchResult<T> {
 
         val target = if (indices.isEmpty()) {
@@ -66,16 +72,19 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
         request.setJsonEntity(query)
 
         return withContext(ioCoroutineContext) {
-            executeDocumentFetchingRequest(restClient, request)
+            executeDocumentFetchingRequest(restClient, request, elasticsearchDocumentsQueryMetrics, eventsLogger, eventTags)
         }
     }
 
-    override suspend fun scroll(restClient: RestClient, scrollDuration: String, scrollId: String): SearchResult<T> {
+    override suspend fun scroll(restClient: RestClient, scrollDuration: String, scrollId: String,
+                                elasticsearchDocumentsQueryMetrics: ElasticsearchDocumentsQueryMetrics?,
+                                eventsLogger: EventsLogger?,
+                                eventTags: Map<String, String>): SearchResult<T> {
         val request = Request("POST", "/_search/scroll")
         request.setJsonEntity("""{ "scroll" : "$scrollDuration", "scroll_id" : "$scrollId" }""")
 
         return withContext(ioCoroutineContext) {
-            executeDocumentFetchingRequest(restClient, request)
+            executeDocumentFetchingRequest(restClient, request, elasticsearchDocumentsQueryMetrics, eventsLogger, eventTags)
         }
     }
 
@@ -97,7 +106,10 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
 
     private suspend fun executeDocumentFetchingRequest(
         restClient: RestClient,
-        request: Request
+        request: Request,
+        elasticsearchDocumentsQueryMetrics: ElasticsearchDocumentsQueryMetrics?,
+        eventsLogger: EventsLogger?,
+        eventTags: Map<String, String>
     ): SearchResult<T> {
         val resultsSlot = ImmutableSlot<SearchResult<T>>()
         val requestKey = keyCounter.getAndIncrement()
@@ -105,8 +117,12 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
         runningRequests[requestKey] = restClient.performRequestAsync(request, object : ResponseListener {
             override fun onSuccess(response: Response) {
                 try {
-                    processDocumentFetchingResponse(response, resultsSlot, requestStart)
+                    processDocumentFetchingResponse(response, resultsSlot, requestStart, elasticsearchDocumentsQueryMetrics, eventsLogger, eventTags)
+                    elasticsearchDocumentsQueryMetrics?.successCounter?.increment(1.0)
+                    eventsLogger?.info("${eventPrefix}.success.times", 1, tags = eventTags)
                 } catch (e: Exception) {
+                    elasticsearchDocumentsQueryMetrics?.failureCounter?.increment(1.0)
+                    eventsLogger?.warn("${eventPrefix}.failure.times", 1, tags = eventTags)
                     runBlocking(ioCoroutineContext) {
                         resultsSlot.set(SearchResult(failure = e))
                     }
@@ -114,8 +130,12 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
             }
 
             override fun onFailure(e: Exception) {
+                elasticsearchDocumentsQueryMetrics?.failureCounter?.increment(1.0)
+                eventsLogger?.warn("${eventPrefix}.failure.times", 1, tags = eventTags)
                 runBlocking(ioCoroutineContext) {
                     if (e is ResponseException) {
+                        elasticsearchDocumentsQueryMetrics?.receivedFailureBytesCounter?.increment(e.response.entity.contentLength.toDouble())
+                        eventsLogger?.warn("${eventPrefix}.failure.bytes", e.response.entity.contentLength, tags = eventTags)
                         resultsSlot.set(
                             SearchResult(failure = ElasticsearchException(EntityUtils.toString(e.response.entity)))
                         )
@@ -134,8 +154,18 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
 
     private fun processDocumentFetchingResponse(
         response: Response, resultsSlot: ImmutableSlot<SearchResult<T>>,
-        requestStartNanos: Long
+        requestStartNanos: Long,
+        elasticsearchDocumentsQueryMetrics: ElasticsearchDocumentsQueryMetrics?,
+        eventsLogger: EventsLogger?,
+        eventTags: Map<String, String>
     ) {
+        val timeToResponse = Duration.ofNanos(System.nanoTime() - requestStartNanos)
+        val totalBytes = response.entity.contentLength
+        elasticsearchDocumentsQueryMetrics?.timeToResponse?.record(timeToResponse)
+        elasticsearchDocumentsQueryMetrics?.receivedSuccessBytesCounter?.increment(totalBytes.toDouble())
+        eventsLogger?.info("${eventPrefix}.success.ttr", timeToResponse, tags = eventTags)
+        eventsLogger?.info("${eventPrefix}.success.received-bytes", totalBytes, tags = eventTags)
+
         val jsonResult = jsonMapper.readTree(EntityUtils.toString(response.entity))
         val cursor = if (jsonResult.hasNonNull("_scroll_id")) {
             jsonResult.get("_scroll_id").textValue()
@@ -155,6 +185,8 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
 
         val documentsNodes = documentsExtractor(jsonResult)
         val searchResult = if (documentsNodes.isNotEmpty()) {
+            elasticsearchDocumentsQueryMetrics?.documentsCounter?.increment(documentsNodes.size.toDouble())
+            eventsLogger?.info("${eventPrefix}.success.records", documentsNodes.size, tags = eventTags)
             log.debug { "${documentsNodes.size} results were received" }
 
             SearchResult(

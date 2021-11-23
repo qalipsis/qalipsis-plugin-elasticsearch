@@ -4,20 +4,20 @@ monitoring:
     enabled: false
     step: PT1M
     index: qalipsis-metrics
-    indexDateFormat: yyyy-MM-dd
-    autoCreateIndex: true
+    index-date-format: yyyy-MM-dd
+    auto-create-index: true
 
 events:
   export:
     elasticsearch:
       enabled: false
-      minLevel: INFO
+      min-level: INFO
       urls: http://localhost:9200
-      indexPrefix: qalipsis-events
-      indexDatePattern: yyyy-MM-dd
-      durationAsNano: false
-      lingerPeriod: 10s
-      batchSize: 2000
+      index-prefix: qalipsis-events
+      index-date-pattern: yyyy-MM-dd
+      duration-as-nano: false
+      linger-period: 10s
+      batch-size: 2000
       publishers: 1
       username:
       password:

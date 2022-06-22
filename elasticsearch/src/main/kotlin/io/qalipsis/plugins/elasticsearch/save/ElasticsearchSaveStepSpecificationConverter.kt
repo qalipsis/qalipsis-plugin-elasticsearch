@@ -20,7 +20,7 @@ import jakarta.inject.Named
 import kotlinx.coroutines.CoroutineScope
 
 @StepConverter
-class ElasticsearchSaveStepSpecificationConverter (
+internal class ElasticsearchSaveStepSpecificationConverter(
     @Named(Executors.IO_EXECUTOR_NAME) private val ioCoroutineScope: CoroutineScope,
     private val meterRegistry: MeterRegistry,
     private val eventsLogger: EventsLogger
@@ -41,7 +41,8 @@ class ElasticsearchSaveStepSpecificationConverter (
             elasticsearchSaveQueryClient = ElasticsearchSaveQueryClientImpl(
                 ioCoroutineScope,
                 spec.client,
-                buildMapper(spec),
+                buildMapper(),
+                spec.keepResponse,
                 eventsLogger = supplyIf(spec.monitoringConfig.events) { eventsLogger },
                 meterRegistry = supplyIf(spec.monitoringConfig.meters) { meterRegistry }
             ),
@@ -51,13 +52,12 @@ class ElasticsearchSaveStepSpecificationConverter (
     }
 
     @KTestable
-    private fun buildMapper(spec: ElasticsearchSaveStepSpecificationImpl<*>): JsonMapper {
+    private fun buildMapper(): JsonMapper {
         val mapper = JsonMapper()
         mapper.registerModule(BeanIntrospectionModule())
         mapper.registerModule(JavaTimeModule())
         mapper.registerModule(KotlinModule())
         mapper.registerModule(Jdk8Module())
-        spec.mapper(mapper)
         return mapper
     }
 }

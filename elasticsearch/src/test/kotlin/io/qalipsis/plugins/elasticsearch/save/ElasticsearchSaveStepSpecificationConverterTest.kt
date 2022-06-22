@@ -15,22 +15,28 @@ import io.qalipsis.api.steps.StepCreationContext
 import io.qalipsis.api.steps.StepCreationContextImpl
 import io.qalipsis.plugins.elasticsearch.Document
 import io.qalipsis.test.assertk.prop
+import io.qalipsis.test.coroutines.TestDispatcherProvider
 import io.qalipsis.test.mockk.WithMockk
 import io.qalipsis.test.mockk.relaxedMockk
 import io.qalipsis.test.steps.AbstractStepSpecificationConverterTest
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.test.runBlockingTest
 import org.elasticsearch.client.RestClient
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 
 /**
  *
  * @author Alex Averyanov
  */
 @WithMockk
-class ElasticsearchSaveStepSpecificationConverterTest :
+internal class ElasticsearchSaveStepSpecificationConverterTest :
     AbstractStepSpecificationConverterTest<ElasticsearchSaveStepSpecificationConverter>() {
-    private val documentsFactory: suspend  ((ctx: StepContext<*, *>, input: Any) -> List<Document>) = { _, _ ->
+
+    @JvmField
+    @RegisterExtension
+    val testDispatcherProvider = TestDispatcherProvider()
+
+    private val documentsFactory: suspend ((ctx: StepContext<*, *>, input: Any) -> List<Document>) = { _, _ ->
         listOf(
             Document("key1", "_doc", "val1", "json"),
             Document("key3", "_doc", "val3", "json"),
@@ -56,7 +62,7 @@ class ElasticsearchSaveStepSpecificationConverterTest :
     }
 
     @Test
-    fun `should convert with name, retry policy and meters`() = runBlockingTest {
+    fun `should convert with name, retry policy and meters`() = testDispatcherProvider.runTest {
         // given
         val spec = ElasticsearchSaveStepSpecificationImpl<Any>()
         spec.also {
@@ -91,7 +97,7 @@ class ElasticsearchSaveStepSpecificationConverterTest :
     }
 
     @Test
-    fun `should convert without name and retry policy but with events`() = runBlockingTest {
+    fun `should convert without name and retry policy but with events`() = testDispatcherProvider.runTest {
         // given
         val spec = ElasticsearchSaveStepSpecificationImpl<Any>()
         spec.also {
@@ -107,6 +113,7 @@ class ElasticsearchSaveStepSpecificationConverterTest :
 
         val creationContext = StepCreationContextImpl(scenarioSpecification, directedAcyclicGraph, spec)
         val spiedConverter = spyk(converter, recordPrivateCalls = true)
+
         // when
         spiedConverter.convert<Unit, Map<String, *>>(
             creationContext as StepCreationContext<ElasticsearchSaveStepSpecificationImpl<*>>

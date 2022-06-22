@@ -8,14 +8,14 @@ import io.qalipsis.plugins.elasticsearch.ElasticsearchBulkResponse
  *
  * @property input the data to save in Elasticsearch
  * @property documentsToSave documents to be saved
- * @property responseBody response of the save step
+ * @property responseBody response to the Elasticsearch response
  * @property meters meters of the save step
  *
  * @author Alex Averyanov
  */
-internal class ElasticsearchSaveResult<I>(
+data class ElasticsearchSaveResult<I>(
     val input: I,
     val documentsToSave: List<Document>,
-    val responseBody: ElasticsearchBulkResponse,
+    val responseBody: ElasticsearchBulkResponse?,
     val meters: ElasticsearchBulkMeters
 )

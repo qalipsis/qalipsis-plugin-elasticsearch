@@ -8,39 +8,42 @@ import assertk.assertions.isInstanceOf
 import assertk.assertions.isNotNull
 import assertk.assertions.isTrue
 import assertk.assertions.prop
-import com.fasterxml.jackson.databind.json.JsonMapper
 import io.qalipsis.api.context.StepContext
 import io.qalipsis.api.steps.DummyStepSpecification
 import io.qalipsis.api.steps.StepMonitoringConfiguration
 import io.qalipsis.plugins.elasticsearch.Document
 import io.qalipsis.plugins.elasticsearch.elasticsearch
-import io.qalipsis.test.mockk.relaxedMockk
-import kotlinx.coroutines.test.runBlockingTest
+import io.qalipsis.test.coroutines.TestDispatcherProvider
 import org.apache.http.HttpHost
 import org.elasticsearch.client.RestClient
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 
 /**
  *
  * @author Alex Averyanov
  */
-class ElasticsearchSaveStepSpecificationImplTest {
-    private val documentsFactory: suspend ( (ctx: StepContext<*, *>, input: Any) -> List<Document>) = { _, _ ->
+internal class ElasticsearchSaveStepSpecificationImplTest {
+
+    @JvmField
+    @RegisterExtension
+    val testDispatcherProvider = TestDispatcherProvider()
+
+    private val documentsFactory: suspend ((ctx: StepContext<*, *>, input: Any) -> List<Document>) = { _, _ ->
         listOf(
             Document("key1", "_doc", "val1", "json"),
             Document("key3", "_doc", "val3", "json"),
             Document("key3-1", "_doc", "val3-1", "json")
         )
     }
+
     @Test
-    fun `should add minimal configuration for the step`() = runBlockingTest {
+    fun `should add minimal configuration for the step`() = testDispatcherProvider.runTest {
         val clientBuilder: () -> RestClient = { RestClient.builder(HttpHost("not-localhost", 10000, "http")).build() }
-        val mapperConfigurer: (JsonMapper) -> Unit = relaxedMockk()
         val previousStep = DummyStepSpecification()
-        previousStep.elasticsearch().send {
+        previousStep.elasticsearch().save {
             name = "my-save-step"
             client(clientBuilder)
-            mapper(mapperConfigurer)
             documents(documentsFactory)
         }
 
@@ -58,14 +61,12 @@ class ElasticsearchSaveStepSpecificationImplTest {
 
 
     @Test
-    fun `should add a configuration for the step with monitoring`() = runBlockingTest {
+    fun `should add a configuration for the step with monitoring`() = testDispatcherProvider.runTest {
         val clientBuilder: () -> RestClient = { RestClient.builder(HttpHost("not-localhost", 10000, "http")).build() }
-        val mapperConfigurer: (JsonMapper) -> Unit = relaxedMockk()
         val previousStep = DummyStepSpecification()
-        previousStep.elasticsearch().send {
+        previousStep.elasticsearch().save {
             name = "my-save-step"
             client(clientBuilder)
-            mapper(mapperConfigurer)
             documents(documentsFactory)
             monitoring {
                 events = false
@@ -84,15 +85,14 @@ class ElasticsearchSaveStepSpecificationImplTest {
             }
         }
     }
+
     @Test
-    fun `should add a configuration for the step with logger`() = runBlockingTest {
+    fun `should add a configuration for the step with logger`() = testDispatcherProvider.runTest {
         val clientBuilder: () -> RestClient = { RestClient.builder(HttpHost("not-localhost", 10000, "http")).build() }
-        val mapperConfigurer: (JsonMapper) -> Unit = relaxedMockk()
         val previousStep = DummyStepSpecification()
-        previousStep.elasticsearch().send {
+        previousStep.elasticsearch().save {
             name = "my-save-step"
             client(clientBuilder)
-            mapper(mapperConfigurer)
             documents(documentsFactory)
             monitoring {
                 events = true

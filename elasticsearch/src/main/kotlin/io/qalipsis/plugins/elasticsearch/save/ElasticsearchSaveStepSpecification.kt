@@ -1,6 +1,5 @@
 package io.qalipsis.plugins.elasticsearch.save
 
-import com.fasterxml.jackson.databind.json.JsonMapper
 import io.qalipsis.api.annotations.Spec
 import io.qalipsis.api.context.StepContext
 import io.qalipsis.api.steps.AbstractStepSpecification
@@ -18,8 +17,8 @@ import org.elasticsearch.client.RestClient
  */
 @Spec
 interface ElasticsearchSaveStepSpecification<I> :
-    StepSpecification<I, I, ElasticsearchSaveStepSpecification<I>>,
-    ElasticsearchStepSpecification<I, I, ElasticsearchSaveStepSpecification<I>> {
+    StepSpecification<I, ElasticsearchSaveResult<I>, ElasticsearchSaveStepSpecification<I>>,
+    ElasticsearchStepSpecification<I, ElasticsearchSaveResult<I>, ElasticsearchSaveStepSpecification<I>> {
 
     /**
      * Configures the REST client to connect to Elasticsearch.
@@ -32,14 +31,14 @@ interface ElasticsearchSaveStepSpecification<I> :
     fun documents(query: suspend (ctx: StepContext<*, *>, input: I) -> List<Document>)
 
     /**
+     * Keep the Elasticsearch bulk response into the result of the step.
+     */
+    fun keepResponse()
+
+    /**
      * Configures the monitoring of the save step.
      */
     fun monitoring(monitoringConfig: StepMonitoringConfiguration.() -> Unit)
-
-    /**
-     * Configures the JSON Mapper to deserialize the records.
-     */
-    fun mapper(mapper: (JsonMapper) -> Unit)
 
 }
 
@@ -49,17 +48,18 @@ interface ElasticsearchSaveStepSpecification<I> :
  * @author Alex Averyanov
  */
 @Spec
-class ElasticsearchSaveStepSpecificationImpl<I> :
+internal class ElasticsearchSaveStepSpecificationImpl<I> :
     ElasticsearchSaveStepSpecification<I>,
-    AbstractStepSpecification<I, I, ElasticsearchSaveStepSpecification<I>>() {
+    AbstractStepSpecification<I, ElasticsearchSaveResult<I>, ElasticsearchSaveStepSpecification<I>>() {
 
     internal var client: (() -> RestClient) = { RestClient.builder(HttpHost("localhost", 9200, "http")).build() }
 
-    internal var documentsFactory: suspend (ctx: StepContext<*, *>, input: I) -> List<Document> = { _, _ -> emptyList() }
+    internal var documentsFactory: suspend (ctx: StepContext<*, *>, input: I) -> List<Document> =
+        { _, _ -> emptyList() }
+
+    internal var keepResponse = false
 
     internal var monitoringConfig = StepMonitoringConfiguration()
-
-    internal var mapper: ((JsonMapper) -> Unit) = { }
 
     override fun client(client: () -> RestClient) {
         this.client = client
@@ -69,13 +69,14 @@ class ElasticsearchSaveStepSpecificationImpl<I> :
         this.documentsFactory = query
     }
 
+    override fun keepResponse() {
+        this.keepResponse = true
+    }
+
     override fun monitoring(monitoringConfig: StepMonitoringConfiguration.() -> Unit) {
         this.monitoringConfig.monitoringConfig()
     }
 
-    override fun mapper(mapper: (JsonMapper) -> Unit) {
-        this.mapper = mapper
-    }
 }
 
 /**
@@ -83,7 +84,7 @@ class ElasticsearchSaveStepSpecificationImpl<I> :
  *
  * @author Alex Averyanov
  */
-fun <I> ElasticsearchStepSpecification<*, I, *>.send(
+fun <I> ElasticsearchStepSpecification<*, I, *>.save(
     configurationBlock: ElasticsearchSaveStepSpecification<I>.() -> Unit
 ): ElasticsearchSaveStepSpecification<I> {
     val step = ElasticsearchSaveStepSpecificationImpl<I>()

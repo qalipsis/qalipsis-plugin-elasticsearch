@@ -14,11 +14,6 @@ import io.qalipsis.api.logging.LoggerHelper.logger
 import io.qalipsis.api.sync.Slot
 import io.qalipsis.plugins.elasticsearch.Document
 import io.qalipsis.plugins.elasticsearch.ElasticsearchBulkResponse
-import java.time.Duration
-import java.util.Random
-import java.util.UUID
-import java.util.concurrent.TimeUnit
-import java.util.regex.Pattern
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.apache.http.util.EntityUtils
@@ -28,6 +23,11 @@ import org.elasticsearch.client.Response
 import org.elasticsearch.client.ResponseException
 import org.elasticsearch.client.ResponseListener
 import org.elasticsearch.client.RestClient
+import java.time.Duration
+import java.util.Random
+import java.util.UUID
+import java.util.concurrent.TimeUnit
+import java.util.regex.Pattern
 
 
 /**
@@ -40,6 +40,7 @@ internal class ElasticsearchSaveQueryClientImpl(
     private val ioCoroutineScope: CoroutineScope,
     private val clientBuilder: () -> RestClient,
     private val jsonMapper: JsonMapper,
+    private val keepElasticsearchBulkResponse: Boolean,
     private var eventsLogger: EventsLogger?,
     private val meterRegistry: MeterRegistry?
 ) : ElasticsearchSaveQueryClient {
@@ -91,12 +92,15 @@ internal class ElasticsearchSaveQueryClientImpl(
         log.debug { "Using Elasticsearch $version" }
     }
 
-    override suspend fun execute(records: List<Document>, contextEventTags: Map<String, String>): ElasticsearchBulkResult {
+    override suspend fun execute(
+        records: List<Document>,
+        contextEventTags: Map<String, String>
+    ): ElasticsearchBulkResult {
         val requestBody = records
             .joinToString(
                 separator = "\n",
                 postfix = "\n",
-            ){ createBulkItem(it) }
+            ) { createBulkItem(it) }
 
         val request = Request("POST", "/_bulk")
         request.setJsonEntity(requestBody)
@@ -121,7 +125,12 @@ internal class ElasticsearchSaveQueryClientImpl(
      * @param restClient the active rest client
      */
     @KTestable
-    private suspend fun send(restClient: RestClient, request: Request, documents: List<Document>, contextEventTags: Map<String, String>): ElasticsearchBulkResult {
+    private suspend fun send(
+        restClient: RestClient,
+        request: Request,
+        documents: List<Document>,
+        contextEventTags: Map<String, String>
+    ): ElasticsearchBulkResult {
         val numberOfSentItems: Int = documents.size
         eventsLogger?.debug(
             "$eventPrefix.saving.documents",
@@ -145,7 +154,14 @@ internal class ElasticsearchSaveQueryClientImpl(
                     timeToResponseTimer?.record(timeDuration, TimeUnit.NANOSECONDS)
                     val totalBytes = response.entity.contentLength
                     eventsLogger?.info("${eventPrefix}.success.bytes", totalBytes, tags = contextEventTags)
-                    val response = processResponse(request, response, numberOfSentItems, totalBytes, timeToResponse, contextEventTags)
+                    val response = processResponse(
+                        request,
+                        response,
+                        numberOfSentItems,
+                        totalBytes,
+                        timeToResponse,
+                        contextEventTags
+                    )
                     ioCoroutineScope.launch {
                         result.set(Result.success(response))
                     }
@@ -177,9 +193,14 @@ internal class ElasticsearchSaveQueryClientImpl(
                     failureCounter?.increment(numberOfSentItems.toDouble())
                     log.debug { "Received error from the server: ${EntityUtils.toString(e.response.entity)}" }
                     val response = ElasticsearchBulkResult(
-                        ElasticsearchBulkResponse(httpStatus = e.response.statusLine.statusCode, responseBody = e.response.toString()),
-                        ElasticsearchBulkMeters(timeToResponse = Duration.ofNanos(timeToResponse), savedDocuments = 0,
-                            failedDocuments = numberOfSentItems, bytesToSave = 0, documentsToSave = numberOfSentItems)
+                        ElasticsearchBulkResponse(
+                            httpStatus = e.response.statusLine.statusCode,
+                            responseBody = e.response.toString()
+                        ),
+                        ElasticsearchBulkMeters(
+                            timeToResponse = Duration.ofNanos(timeToResponse), savedDocuments = 0,
+                            failedDocuments = numberOfSentItems, bytesToSave = 0, documentsToSave = numberOfSentItems
+                        )
                     )
                     ioCoroutineScope.launch {
                         result.set(Result.success(response))
@@ -195,8 +216,10 @@ internal class ElasticsearchSaveQueryClientImpl(
         return result.get().getOrThrow()
     }
 
-    private fun processResponse(bulkRequest: Request, response: Response, numberOfSentItems: Int,
-                                totalBytes: Long, timeToResponse: Duration, contextEventTags: Map<String, String>): ElasticsearchBulkResult {
+    private fun processResponse(
+        bulkRequest: Request, response: Response, numberOfSentItems: Int,
+        totalBytes: Long, timeToResponse: Duration, contextEventTags: Map<String, String>
+    ): ElasticsearchBulkResult {
         val responseBody = EntityUtils.toString(response.entity)
         if (responseBody.contains(ERROR_RESPONSE_BODY_SIGNATURE)) {
             val numberOfCreatedItems = countCreatedItems(responseBody)
@@ -204,7 +227,11 @@ internal class ElasticsearchSaveQueryClientImpl(
                 info("${eventPrefix}.success.documents", numberOfCreatedItems, tags = contextEventTags)
             }
             eventsLogger?.apply {
-                info("${eventPrefix}.failure.documents", numberOfSentItems - numberOfCreatedItems, tags = contextEventTags)
+                info(
+                    "${eventPrefix}.failure.documents",
+                    numberOfSentItems - numberOfCreatedItems,
+                    tags = contextEventTags
+                )
             }
             successCounter?.increment(numberOfCreatedItems.toDouble())
             failureCounter?.increment((numberOfSentItems - numberOfCreatedItems).toDouble())
@@ -221,21 +248,51 @@ internal class ElasticsearchSaveQueryClientImpl(
                 }"
             }
             log.debug { "Failed events payload: ${bulkRequest.entity}" }
-            return ElasticsearchBulkResult(
-                ElasticsearchBulkResponse(httpStatus = response.statusLine.statusCode, responseBody = responseBody),
-                ElasticsearchBulkMeters(timeToResponse = timeToResponse, savedDocuments = numberOfCreatedItems,
-                    failedDocuments = numberOfSentItems - numberOfCreatedItems, bytesToSave = 0, documentsToSave = numberOfSentItems)
-            )
+            return if (keepElasticsearchBulkResponse) {
+                ElasticsearchBulkResult(
+                    ElasticsearchBulkResponse(httpStatus = response.statusLine.statusCode, responseBody = responseBody),
+                    ElasticsearchBulkMeters(
+                        timeToResponse = timeToResponse,
+                        savedDocuments = numberOfCreatedItems,
+                        failedDocuments = numberOfSentItems - numberOfCreatedItems,
+                        bytesToSave = 0,
+                        documentsToSave = numberOfSentItems
+                    )
+                )
+            } else {
+                ElasticsearchBulkResult(
+                    null,
+                    ElasticsearchBulkMeters(
+                        timeToResponse = timeToResponse,
+                        savedDocuments = numberOfCreatedItems,
+                        failedDocuments = numberOfSentItems - numberOfCreatedItems,
+                        bytesToSave = 0,
+                        documentsToSave = numberOfSentItems
+                    )
+                )
+            }
         } else {
             log.trace { "Successfully saved $numberOfSentItems events to Elasticsearch" }
             log.trace { "Successfully saved $totalBytes bytes to Elasticsearch" }
             successCounter?.increment(numberOfSentItems.toDouble())
             savedBytesCounter?.increment(totalBytes.toDouble())
-            return ElasticsearchBulkResult(
-                ElasticsearchBulkResponse(httpStatus = response.statusLine.statusCode, responseBody = responseBody),
-                ElasticsearchBulkMeters(timeToResponse = timeToResponse, savedDocuments = numberOfSentItems,
-                    failedDocuments = 0, bytesToSave = totalBytes, documentsToSave = numberOfSentItems)
-            )
+            return if (keepElasticsearchBulkResponse) {
+                ElasticsearchBulkResult(
+                    ElasticsearchBulkResponse(httpStatus = response.statusLine.statusCode, responseBody = responseBody),
+                    ElasticsearchBulkMeters(
+                        timeToResponse = timeToResponse, savedDocuments = numberOfSentItems,
+                        failedDocuments = 0, bytesToSave = totalBytes, documentsToSave = numberOfSentItems
+                    )
+                )
+            } else {
+                ElasticsearchBulkResult(
+                    null,
+                    ElasticsearchBulkMeters(
+                        timeToResponse = timeToResponse, savedDocuments = numberOfSentItems,
+                        failedDocuments = 0, bytesToSave = totalBytes, documentsToSave = numberOfSentItems
+                    )
+                )
+            }
         }
     }
 

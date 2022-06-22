@@ -6,6 +6,7 @@ import assertk.assertions.isEqualTo
 import assertk.assertions.isInstanceOf
 import assertk.assertions.isNotNull
 import assertk.assertions.isNotSameAs
+import assertk.assertions.isNull
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
@@ -26,9 +27,6 @@ import io.qalipsis.plugins.elasticsearch.ElasticsearchBulkResponse
 import io.qalipsis.test.assertk.prop
 import io.qalipsis.test.coroutines.TestDispatcherProvider
 import io.qalipsis.test.mockk.relaxedMockk
-import java.time.Duration
-import java.time.format.DateTimeFormatter
-import java.util.concurrent.TimeUnit
 import org.apache.http.HttpHost
 import org.apache.http.util.EntityUtils
 import org.elasticsearch.client.Request
@@ -39,8 +37,13 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.api.extension.RegisterExtension
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 import org.testcontainers.elasticsearch.ElasticsearchContainer
 import org.testcontainers.junit.jupiter.Testcontainers
+import java.time.Duration
+import java.time.format.DateTimeFormatter
+import java.util.concurrent.TimeUnit
 
 
 /**
@@ -98,9 +101,13 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
         restClient.close()
     }
 
-    @Test
+    @ParameterizedTest
+    @CsvSource(
+        "true",
+        "false"
+    )
     @Timeout(30)
-    internal fun `should export data`() = testDispatcherProvider.run {
+    internal fun `should export data`(keepElasticsearchBulkResponse: Boolean) = testDispatcherProvider.run {
         val metersTags = relaxedMockk<Tags>()
         val meterRegistry = relaxedMockk<MeterRegistry> {
             every { counter("elasticsearch-save-received-documents", refEq(metersTags)) } returns documentsCount
@@ -118,6 +125,7 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
             ioCoroutineScope = this,
             clientBuilder = { restClient },
             jsonMapper = jsonMapper,
+            keepElasticsearchBulkResponse = keepElasticsearchBulkResponse,
             meterRegistry = meterRegistry,
             eventsLogger = eventsLogger
         )
@@ -125,8 +133,8 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
 
         val tags: Map<String, String> = emptyMap()
         val documents = listOf(
-            Document("index1", "_doc", null,"""{"query": "data1","count": 7}"""),
-            Document("index2", "_doc", null,"""{"query": "data2","count": 7}""")
+            Document("index1", "_doc", null, """{"query": "data1","count": 7}"""),
+            Document("index2", "_doc", null, """{"query": "data2","count": 7}""")
         )
         val resultOfExecute = client.execute(documents, tags)
         assertThat(resultOfExecute).isInstanceOf(ElasticsearchBulkResult::class.java).all {
@@ -137,9 +145,13 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
                 prop("bytesToSave").isNotNull().isEqualTo(463L)
                 prop("documentsToSave").isEqualTo(2)
             }
-            prop("responseBody").isNotNull().isInstanceOf(ElasticsearchBulkResponse::class.java).all {
-                prop("httpStatus").isEqualTo(200)
-                prop("responseBody").isNotNull()
+            if (keepElasticsearchBulkResponse) {
+                prop("responseBody").isNotNull().isInstanceOf(ElasticsearchBulkResponse::class.java).all {
+                    prop("httpStatus").isEqualTo(200)
+                    prop("responseBody").isNotNull()
+                }
+            } else {
+                prop("responseBody").isNull()
             }
         }
 
@@ -189,6 +201,7 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
             ioCoroutineScope = this,
             clientBuilder = { restClient },
             jsonMapper = jsonMapper,
+            keepElasticsearchBulkResponse = false,
             meterRegistry = meterRegistry,
             eventsLogger = eventsLogger
         )
@@ -198,9 +211,9 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
 
         val documents = listOf(
             Document("key1", "val1", null, """"query": "data1"""),
-            Document("index", "_doc", null,"""{"query": "data3","count": 7}""")
+            Document("index", "_doc", null, """{"query": "data3","count": 7}""")
         )
-        val resultOfExecute = client.execute( documents, tags)
+        val resultOfExecute = client.execute(documents, tags)
         assertThat(resultOfExecute).isInstanceOf(ElasticsearchBulkResult::class.java).all {
             prop("meters").isNotNull().isInstanceOf(ElasticsearchBulkMeters::class.java).all {
                 prop("savedDocuments").isEqualTo(1)

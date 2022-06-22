@@ -11,6 +11,6 @@ import io.qalipsis.plugins.elasticsearch.ElasticsearchBulkResponse
  * @author Alex Averyanov
  */
 data class ElasticsearchBulkResult (
-    val responseBody: ElasticsearchBulkResponse,
+    val responseBody: ElasticsearchBulkResponse?,
     val meters: ElasticsearchBulkMeters
 )

@@ -14,18 +14,23 @@ import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.impl.annotations.RelaxedMockK
 import io.qalipsis.plugins.elasticsearch.ElasticsearchDocument
+import io.qalipsis.test.coroutines.TestDispatcherProvider
 import io.qalipsis.test.mockk.WithMockk
 import io.qalipsis.test.mockk.relaxedMockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.test.runBlockingTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
+import org.junit.jupiter.api.extension.RegisterExtension
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 
 @WithMockk
 internal class JsonObjectListSingleConverterTest {
+
+    @JvmField
+    @RegisterExtension
+    val testDispatcherProvider = TestDispatcherProvider()
 
     @RelaxedMockK
     private lateinit var channel: Channel<ElasticsearchDocument<Int>>
@@ -33,7 +38,7 @@ internal class JsonObjectListSingleConverterTest {
     @Test
     @Timeout(5)
     @ExperimentalCoroutinesApi
-    internal fun `should convert`() = runBlockingTest {
+    internal fun `should convert`() = testDispatcherProvider.runTest {
         // given
         val valueCounter = AtomicInteger(7)
         val record1 = relaxedMockk<ObjectNode>()

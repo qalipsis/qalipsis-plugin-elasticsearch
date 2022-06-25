@@ -84,7 +84,7 @@ internal class ElasticsearchSaveStepSpecificationConverterTest :
 
         // then
         assertThat(creationContext.createdStep!!).all {
-            prop("id").isNotNull().isEqualTo("my-step")
+            prop("name").isNotNull().isEqualTo("my-step")
             prop("elasticsearchSaveQueryClient").all {
                 prop("clientBuilder").isNotNull().isSameAs(restClientBuilder)
                 prop("ioCoroutineScope").isSameAs(ioCoroutineScope)
@@ -121,7 +121,7 @@ internal class ElasticsearchSaveStepSpecificationConverterTest :
 
         // then
         assertThat(creationContext.createdStep!!).all {
-            prop("id").isNotNull().isEqualTo("my-step")
+            prop("name").isNotNull().isEqualTo("my-step")
             prop("elasticsearchSaveQueryClient").all {
                 prop("clientBuilder").isNotNull().isSameAs(restClientBuilder)
                 prop("meterRegistry").isNull()

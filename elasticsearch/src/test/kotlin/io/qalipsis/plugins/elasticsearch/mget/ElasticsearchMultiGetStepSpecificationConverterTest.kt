@@ -27,14 +27,15 @@ import io.qalipsis.api.steps.StepMonitoringConfiguration
 import io.qalipsis.plugins.elasticsearch.query.ElasticsearchDocumentsQueryClientImpl
 import io.qalipsis.plugins.elasticsearch.query.ElasticsearchDocumentsQueryStep
 import io.qalipsis.test.assertk.prop
+import io.qalipsis.test.coroutines.TestDispatcherProvider
 import io.qalipsis.test.mockk.WithMockk
 import io.qalipsis.test.mockk.relaxedMockk
 import io.qalipsis.test.steps.AbstractStepSpecificationConverterTest
-import kotlinx.coroutines.test.runBlockingTest
 import org.elasticsearch.client.RestClient
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import kotlin.coroutines.CoroutineContext
 import kotlin.reflect.KClass
 
@@ -45,6 +46,10 @@ import kotlin.reflect.KClass
 @WithMockk
 internal class ElasticsearchMultiGetStepSpecificationConverterTest :
     AbstractStepSpecificationConverterTest<ElasticsearchMultiGetStepSpecificationConverter>() {
+
+    @JvmField
+    @RegisterExtension
+    val testDispatcherProvider = TestDispatcherProvider()
 
     @RelaxedMockK
     private lateinit var clientBuilder: () -> RestClient
@@ -91,7 +96,7 @@ internal class ElasticsearchMultiGetStepSpecificationConverterTest :
     }
 
     @Test
-    fun `should convert with name and retry policy`() = runBlockingTest {
+    fun `should convert with name and retry policy`() = testDispatcherProvider.runTest {
         // given
         val spec = ElasticsearchMultiGetStepSpecificationImpl<Int>().also {
             it.name = "my-step"
@@ -118,7 +123,7 @@ internal class ElasticsearchMultiGetStepSpecificationConverterTest :
         // then
         creationContext.createdStep!!.let {
             assertThat(it).isInstanceOf(ElasticsearchDocumentsQueryStep::class).all {
-                prop("id").isEqualTo("my-step")
+                prop("name").isEqualTo("my-step")
                 prop("retryPolicy").isEqualTo(retryPolicy)
                 prop("restClientBuilder").isEqualTo(clientBuilder)
                 prop("queryParamsFactory").isEqualTo(paramsFactory)
@@ -128,7 +133,7 @@ internal class ElasticsearchMultiGetStepSpecificationConverterTest :
     }
 
     @Test
-    fun `should convert without name nor retry policy`() = runBlockingTest {
+    fun `should convert without name nor retry policy`() = testDispatcherProvider.runTest {
         // given
         val spec = ElasticsearchMultiGetStepSpecificationImpl<Int>().also {
             it.client(clientBuilder)
@@ -153,7 +158,7 @@ internal class ElasticsearchMultiGetStepSpecificationConverterTest :
         // then
         creationContext.createdStep!!.let {
             assertThat(it).isInstanceOf(ElasticsearchDocumentsQueryStep::class).all {
-                prop("id").isNotNull()
+                prop("name").isNotNull()
                 prop("retryPolicy").isNull()
                 prop("restClientBuilder").isEqualTo(clientBuilder)
                 prop("queryParamsFactory").isEqualTo(paramsFactory)
@@ -278,7 +283,7 @@ internal class ElasticsearchMultiGetStepSpecificationConverterTest :
     }
 
     @Test
-    internal fun `should build the query builder`() = runBlockingTest {
+    internal fun `should build the query builder`() = testDispatcherProvider.runTest {
         // given
         val jsonMapper = JsonMapper()
         val contextSlot = slot<StepContext<*, *>>()
@@ -307,7 +312,7 @@ internal class ElasticsearchMultiGetStepSpecificationConverterTest :
     }
 
     @Test
-    fun `should add eventsLogger`() = runBlockingTest {
+    fun `should add eventsLogger`() = testDispatcherProvider.runTest {
         // given
         val spec = ElasticsearchMultiGetStepSpecificationImpl<Int>().also {
             it.name = "my-step"
@@ -335,7 +340,7 @@ internal class ElasticsearchMultiGetStepSpecificationConverterTest :
         // then
         creationContext.createdStep!!.let {
             assertThat(it).isInstanceOf(ElasticsearchDocumentsQueryStep::class).all {
-                prop("id").isEqualTo("my-step")
+                prop("name").isEqualTo("my-step")
                 prop("eventsLogger").isEqualTo(eventsLogger)
                 prop("meterRegistry").isNull()
                 prop("retryPolicy").isEqualTo(retryPolicy)
@@ -347,7 +352,7 @@ internal class ElasticsearchMultiGetStepSpecificationConverterTest :
     }
 
     @Test
-    fun `should add meterRegistry`() = runBlockingTest {
+    fun `should add meterRegistry`() = testDispatcherProvider.runTest {
         // given
         val spec = ElasticsearchMultiGetStepSpecificationImpl<Int>().also {
             it.name = "my-step"
@@ -375,7 +380,7 @@ internal class ElasticsearchMultiGetStepSpecificationConverterTest :
         // then
         creationContext.createdStep!!.let {
             assertThat(it).isInstanceOf(ElasticsearchDocumentsQueryStep::class).all {
-                prop("id").isEqualTo("my-step")
+                prop("name").isEqualTo("my-step")
                 prop("eventsLogger").isNull()
                 prop("meterRegistry").isEqualTo(meterRegistry)
                 prop("retryPolicy").isEqualTo(retryPolicy)

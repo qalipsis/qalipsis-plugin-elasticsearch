@@ -5,7 +5,6 @@ import assertk.assertThat
 import assertk.assertions.isEqualTo
 import assertk.assertions.isInstanceOf
 import assertk.assertions.isNotNull
-import assertk.assertions.isNotSameAs
 import assertk.assertions.isNull
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.json.JsonMapper
@@ -37,8 +36,6 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.api.extension.RegisterExtension
-import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.CsvSource
 import org.testcontainers.elasticsearch.ElasticsearchContainer
 import org.testcontainers.junit.jupiter.Testcontainers
 import java.time.Duration
@@ -101,13 +98,9 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
         restClient.close()
     }
 
-    @ParameterizedTest
-    @CsvSource(
-        "true",
-        "false"
-    )
+    @Test
     @Timeout(30)
-    internal fun `should export data`(keepElasticsearchBulkResponse: Boolean) = testDispatcherProvider.run {
+    internal fun `should export data`() = testDispatcherProvider.run {
         val metersTags = relaxedMockk<Tags>()
         val meterRegistry = relaxedMockk<MeterRegistry> {
             every { counter("elasticsearch-save-received-documents", refEq(metersTags)) } returns documentsCount
@@ -125,7 +118,7 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
             ioCoroutineScope = this,
             clientBuilder = { restClient },
             jsonMapper = jsonMapper,
-            keepElasticsearchBulkResponse = keepElasticsearchBulkResponse,
+            keepElasticsearchBulkResponse = true,
             meterRegistry = meterRegistry,
             eventsLogger = eventsLogger
         )
@@ -145,13 +138,9 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
                 prop("bytesToSave").isNotNull().isEqualTo(463L)
                 prop("documentsToSave").isEqualTo(2)
             }
-            if (keepElasticsearchBulkResponse) {
-                prop("responseBody").isNotNull().isInstanceOf(ElasticsearchBulkResponse::class.java).all {
-                    prop("httpStatus").isEqualTo(200)
-                    prop("responseBody").isNotNull()
-                }
-            } else {
-                prop("responseBody").isNull()
+            prop("responseBody").isNotNull().isInstanceOf(ElasticsearchBulkResponse::class.java).all {
+                prop("httpStatus").isEqualTo(200)
+                prop("responseBody").isNotNull()
             }
         }
 
@@ -221,10 +210,7 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
                 prop("timeToResponse").isNotNull().isInstanceOf(Duration::class.java)
                 prop("documentsToSave").isEqualTo(2)
             }
-            prop("responseBody").isNotNull().isInstanceOf(ElasticsearchBulkResponse::class.java).all {
-                prop("httpStatus").isNotSameAs(200)
-                prop("responseBody").isNotNull()
-            }
+            prop("responseBody").isNull()
         }
         val retrievalPayload = refreshIndicesAndFetchAllDocuments()
         val hits = retrievalPayload.withArray("hits")

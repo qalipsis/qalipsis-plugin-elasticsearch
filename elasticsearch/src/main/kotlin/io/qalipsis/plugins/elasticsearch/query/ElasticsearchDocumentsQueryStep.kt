@@ -8,7 +8,7 @@ import io.micrometer.core.instrument.Tags
 import io.micrometer.core.instrument.Timer
 import io.qalipsis.api.context.StepContext
 import io.qalipsis.api.context.StepError
-import io.qalipsis.api.context.StepId
+import io.qalipsis.api.context.StepName
 import io.qalipsis.api.context.StepStartStopContext
 import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.api.logging.LoggerHelper.logger
@@ -30,7 +30,7 @@ import org.elasticsearch.client.RestClient
  * @author Eric Jessé
  */
 internal class ElasticsearchDocumentsQueryStep<I, T>(
-    id: StepId,
+    id: StepName,
     retryPolicy: RetryPolicy?,
     private val restClientBuilder: () -> RestClient,
     private val queryClient: ElasticsearchDocumentsQueryClient<T>,
@@ -63,12 +63,12 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
     private var elasticsearchDocumentsQueryMetrics: ElasticsearchDocumentsQueryMetrics? = null
 
     override suspend fun start(context: StepStartStopContext) {
-        log.debug { "Starting step $id for campaign ${context.campaignId} of scenario ${context.scenarioId}" }
+        log.debug { "Starting step $name for campaign ${context.campaignKey} of scenario ${context.scenarioName}" }
         restClient = restClientBuilder()
 
         initMonitoringMetrics(context)
 
-        log.debug { "Step $id for campaign ${context.campaignId} of scenario ${context.scenarioId} is started" }
+        log.debug { "Step $name for campaign ${context.campaignKey} of scenario ${context.scenarioName} is started" }
     }
 
     private fun initMonitoringMetrics(context: StepStartStopContext) {
@@ -93,14 +93,14 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
     }
 
     override suspend fun stop(context: StepStartStopContext) {
-        log.debug { "Stopping step $id for campaign ${context.campaignId} of scenario ${context.scenarioId}" }
+        log.debug { "Stopping step $name for campaign ${context.campaignKey} of scenario ${context.scenarioName}" }
         queryClient.cancelAll()
         kotlin.runCatching {
             restClient?.close()
         }
         stopMonitoringMetrics()
         restClient = null
-        log.debug { "Step $id for campaign ${context.campaignId} of scenario ${context.scenarioId} is stopped" }
+        log.debug { "Step $name for campaign ${context.campaignKey} of scenario ${context.scenarioName} is stopped" }
     }
 
     private fun stopMonitoringMetrics() {

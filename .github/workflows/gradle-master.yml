@@ -41,7 +41,9 @@ jobs:
         run: ./gradlew check testReport --continue -i --refresh-dependencies
 
       - name: Publish Test Report
-        uses: mikepenz/action-junit-report@v2
+        uses: mikepenz/action-junit-report@v3
+        env:
+          NODE_OPTIONS: '--max_old_space_size=4096'
         if: always()
         with:
           report_paths: '**/build/test-results/*/TEST-*.xml'

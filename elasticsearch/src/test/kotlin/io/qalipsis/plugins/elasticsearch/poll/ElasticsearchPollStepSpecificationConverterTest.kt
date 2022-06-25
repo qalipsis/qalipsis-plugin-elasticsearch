@@ -27,6 +27,7 @@ import io.qalipsis.plugins.elasticsearch.converters.JsonObjectListBatchConverter
 import io.qalipsis.plugins.elasticsearch.converters.JsonObjectListSingleConverter
 import io.qalipsis.test.assertk.prop
 import io.qalipsis.test.assertk.typedProp
+import io.qalipsis.test.coroutines.TestDispatcherProvider
 import io.qalipsis.test.mockk.WithMockk
 import io.qalipsis.test.mockk.relaxedMockk
 import io.qalipsis.test.mockk.verifyOnce
@@ -34,11 +35,11 @@ import io.qalipsis.test.steps.AbstractStepSpecificationConverterTest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.test.runBlockingTest
 import org.elasticsearch.client.RestClient
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import java.time.Duration
 import java.util.Random
 import kotlin.coroutines.CoroutineContext
@@ -50,6 +51,10 @@ import kotlin.coroutines.CoroutineContext
 @WithMockk
 internal class ElasticsearchPollStepSpecificationConverterTest :
     AbstractStepSpecificationConverterTest<ElasticsearchPollStepSpecificationConverter>() {
+
+    @JvmField
+    @RegisterExtension
+    val testDispatcherProvider = TestDispatcherProvider()
 
     @RelaxedMockK
     private lateinit var mockedJsonMapper: JsonMapper
@@ -93,7 +98,7 @@ internal class ElasticsearchPollStepSpecificationConverterTest :
 
     @Test
     @ExperimentalCoroutinesApi
-    fun `should convert with name`() = runBlockingTest {
+    fun `should convert with name`() = testDispatcherProvider.runTest {
         // given
         val spec = ElasticsearchPollStepSpecificationImpl()
         spec.apply {
@@ -123,7 +128,7 @@ internal class ElasticsearchPollStepSpecificationConverterTest :
         // then
         creationContext.createdStep!!.let {
             assertThat(it).isInstanceOf(IterativeDatasourceStep::class).all {
-                prop("id").isEqualTo("my-step")
+                prop("name").isEqualTo("my-step")
                 prop("reader").isNotNull().isInstanceOf(ElasticsearchIterativeReader::class).all {
                     prop("ioCoroutineScope").isSameAs(ioCoroutineScope)
                     prop("ioCoroutineContext").isSameAs(ioCoroutineContext)
@@ -282,7 +287,7 @@ internal class ElasticsearchPollStepSpecificationConverterTest :
 
     @Test
     @ExperimentalCoroutinesApi
-    fun `should add eventsLogger`() = runBlockingTest {
+    fun `should add eventsLogger`() = testDispatcherProvider.runTest {
 
         // given
         val spec = ElasticsearchPollStepSpecificationImpl()
@@ -314,7 +319,7 @@ internal class ElasticsearchPollStepSpecificationConverterTest :
         // then
         creationContext.createdStep!!.let {
             assertThat(it).isInstanceOf(IterativeDatasourceStep::class).all {
-                prop("id").isEqualTo("my-step")
+                prop("name").isEqualTo("my-step")
                 prop("reader").isNotNull().isInstanceOf(ElasticsearchIterativeReader::class).all {
                     prop("eventsLogger").isSameAs(eventsLogger)
                     prop("meterRegistry").isNull()
@@ -349,7 +354,7 @@ internal class ElasticsearchPollStepSpecificationConverterTest :
 
     @Test
     @ExperimentalCoroutinesApi
-    fun `should add meterRegistry`() = runBlockingTest {
+    fun `should add meterRegistry`() = testDispatcherProvider.runTest {
 
         // given
         val spec = ElasticsearchPollStepSpecificationImpl()
@@ -381,7 +386,7 @@ internal class ElasticsearchPollStepSpecificationConverterTest :
         // then
         creationContext.createdStep!!.let {
             assertThat(it).isInstanceOf(IterativeDatasourceStep::class).all {
-                prop("id").isEqualTo("my-step")
+                prop("name").isEqualTo("my-step")
                 prop("reader").isNotNull().isInstanceOf(ElasticsearchIterativeReader::class).all {
                     prop("eventsLogger").isNull()
                     prop("meterRegistry").isSameAs(meterRegistry)

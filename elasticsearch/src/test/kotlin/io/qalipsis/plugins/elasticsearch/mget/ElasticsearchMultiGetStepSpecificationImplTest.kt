@@ -9,11 +9,12 @@ import io.mockk.confirmVerified
 import io.qalipsis.api.context.StepContext
 import io.qalipsis.api.steps.DummyStepSpecification
 import io.qalipsis.plugins.elasticsearch.elasticsearch
+import io.qalipsis.test.coroutines.TestDispatcherProvider
 import io.qalipsis.test.mockk.relaxedMockk
-import kotlinx.coroutines.test.runBlockingTest
 import org.elasticsearch.client.RestClient
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import kotlin.random.Random
 
 /**
@@ -22,8 +23,12 @@ import kotlin.random.Random
  */
 internal class ElasticsearchMultiGetStepSpecificationImplTest {
 
+    @JvmField
+    @RegisterExtension
+    val testDispatcherProvider = TestDispatcherProvider()
+
     @Test
-    internal fun `should add minimal specification to the step`() = runBlockingTest {
+    internal fun `should add minimal specification to the step`() = testDispatcherProvider.runTest {
         val previousStep = DummyStepSpecification()
         previousStep.elasticsearch().mget { }
 

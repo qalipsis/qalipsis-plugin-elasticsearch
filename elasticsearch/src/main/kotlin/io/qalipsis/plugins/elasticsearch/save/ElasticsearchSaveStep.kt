@@ -1,7 +1,7 @@
 package io.qalipsis.plugins.elasticsearch.save
 
 import io.qalipsis.api.context.StepContext
-import io.qalipsis.api.context.StepId
+import io.qalipsis.api.context.StepName
 import io.qalipsis.api.context.StepStartStopContext
 import io.qalipsis.api.retry.RetryPolicy
 import io.qalipsis.api.steps.AbstractStep
@@ -16,7 +16,7 @@ import io.qalipsis.plugins.elasticsearch.Document
  * @author Alex Averyanov
  */
 internal class ElasticsearchSaveStep<I>(
-    id: StepId,
+    id: StepName,
     retryPolicy: RetryPolicy?,
     private val elasticsearchSaveQueryClient: ElasticsearchSaveQueryClient,
     private val documentsFactory: suspend (ctx: StepContext<*, *>, input: I) -> List<Document>,

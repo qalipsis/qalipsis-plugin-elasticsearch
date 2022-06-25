@@ -14,16 +14,17 @@ import io.qalipsis.api.context.StepStartStopContext
 import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.plugins.elasticsearch.ElasticsearchDocument
 import io.qalipsis.test.assertk.prop
+import io.qalipsis.test.coroutines.TestDispatcherProvider
 import io.qalipsis.test.mockk.WithMockk
 import io.qalipsis.test.mockk.coVerifyOnce
 import io.qalipsis.test.mockk.relaxedMockk
 import io.qalipsis.test.steps.StepTestHelper
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.test.runBlockingTest
 import org.elasticsearch.client.RestClient
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
+import org.junit.jupiter.api.extension.RegisterExtension
 import java.time.Instant
 
 /**
@@ -32,6 +33,10 @@ import java.time.Instant
  */
 @WithMockk
 internal class ElasticsearchDocumentsQueryStepTest {
+
+    @JvmField
+    @RegisterExtension
+    val testDispatcherProvider = TestDispatcherProvider()
 
     @RelaxedMockK
     private lateinit var restClient: RestClient
@@ -63,7 +68,7 @@ internal class ElasticsearchDocumentsQueryStepTest {
 
     @Test
     @Timeout(2)
-    internal fun `should create the rest client at start`() = runBlockingTest {
+    internal fun `should create the rest client at start`() = testDispatcherProvider.runTest {
         // given
         every { restClientFactory() } returns restClient
         val step = ElasticsearchDocumentsQueryStep(
@@ -89,7 +94,7 @@ internal class ElasticsearchDocumentsQueryStepTest {
 
     @Test
     @Timeout(2)
-    internal fun `should close the rest client and cancel all queries at stop`() = runBlockingTest {
+    internal fun `should close the rest client and cancel all queries at stop`() = testDispatcherProvider.runTest {
         // given
         val step = ElasticsearchDocumentsQueryStep(
             "", null,
@@ -119,7 +124,7 @@ internal class ElasticsearchDocumentsQueryStepTest {
 
     @Test
     @Timeout(2)
-    internal fun `should execute one search query`() = runBlockingTest {
+    internal fun `should execute one search query`() = testDispatcherProvider.runTest {
         // given
         every { restClientFactory() } returns restClient
         val ctx = StepTestHelper.createStepContext<Int, Pair<Int, SearchResult<String>>>(input = 123)
@@ -160,7 +165,7 @@ internal class ElasticsearchDocumentsQueryStepTest {
         // when
         step.start(stepStartStopContext)
         step.execute(ctx)
-        val (input, searchResult) = (ctx.output as Channel<Pair<Int, SearchResult<String>>>).receive()
+        val (input, searchResult) = (ctx.output as Channel<StepContext.StepOutputRecord<Pair<Int, SearchResult<String>>>>).receive().value
 
         // then
         assertThat(input).isEqualTo(123)
@@ -185,13 +190,15 @@ internal class ElasticsearchDocumentsQueryStepTest {
 
     @Test
     @Timeout(2)
-    internal fun `should page until last document when cursor is enabled`() = runBlockingTest {
+    internal fun `should page until last document when cursor is enabled`() = testDispatcherProvider.runTest {
         // given
         every { restClientFactory() } returns restClient
         val ctx = StepTestHelper.createStepContext<Int, Pair<Int, SearchResult<String>>>(input = 123)
         coEvery { indicesBuilder(refEq(ctx), eq(123)) } returns listOf("index-1", "index-2")
-        coEvery { queryParamsBuilder(refEq(ctx), eq(123)) } returns mapOf("param-1" to "value-1",
-            "scroll" to "the scroll duration")
+        coEvery { queryParamsBuilder(refEq(ctx), eq(123)) } returns mapOf(
+            "param-1" to "value-1",
+            "scroll" to "the scroll duration"
+        )
         coEvery { queryBuilder(refEq(ctx), eq(123)) } returns queryNode
         every { queryNode.toString() } returns "the-query"
 
@@ -241,7 +248,7 @@ internal class ElasticsearchDocumentsQueryStepTest {
         step.start(stepStartStopContext)
         // when
         step.execute(ctx)
-        val (input, searchResult) = (ctx.output as Channel<Pair<Int, SearchResult<String>>>).receive()
+        val (input, searchResult) = (ctx.output as Channel<StepContext.StepOutputRecord<Pair<Int, SearchResult<String>>>>).receive().value
 
         // then
         assertThat(input).isEqualTo(123)
@@ -284,13 +291,15 @@ internal class ElasticsearchDocumentsQueryStepTest {
     @ExperimentalCoroutinesApi
     @Test
     @Timeout(2)
-    internal fun `should return a failure when scrolling fails`() = runBlockingTest {
+    internal fun `should return a failure when scrolling fails`() = testDispatcherProvider.runTest {
         // given
         every { restClientFactory() } returns restClient
         val ctx = StepTestHelper.createStepContext<Int, Pair<Int, SearchResult<String>>>(input = 123)
         coEvery { indicesBuilder(refEq(ctx), eq(123)) } returns listOf("index-1", "index-2")
-        coEvery { queryParamsBuilder(refEq(ctx), eq(123)) } returns mapOf("param-1" to "value-1",
-            "scroll" to "the scroll duration")
+        coEvery { queryParamsBuilder(refEq(ctx), eq(123)) } returns mapOf(
+            "param-1" to "value-1",
+            "scroll" to "the scroll duration"
+        )
         coEvery { queryBuilder(refEq(ctx), eq(123)) } returns queryNode
         every { queryNode.toString() } returns "the-query"
 
@@ -363,7 +372,7 @@ internal class ElasticsearchDocumentsQueryStepTest {
 
     @Test
     @Timeout(2)
-    internal fun `should page until last document when search after is enabled`() = runBlockingTest {
+    internal fun `should page until last document when search after is enabled`() = testDispatcherProvider.runTest {
         // given
         every { restClientFactory() } returns restClient
         val ctx = StepTestHelper.createStepContext<Int, Pair<Int, SearchResult<String>>>(input = 123)
@@ -423,7 +432,7 @@ internal class ElasticsearchDocumentsQueryStepTest {
         // when
         step.start(stepStartStopContext)
         step.execute(ctx)
-        val (input, searchResult) = (ctx.output as Channel<Pair<Int, SearchResult<String>>>).receive()
+        val (input, searchResult) = (ctx.output as Channel<StepContext.StepOutputRecord<Pair<Int, SearchResult<String>>>>).receive().value
 
         // then
         assertThat(input).isEqualTo(123)
@@ -473,7 +482,7 @@ internal class ElasticsearchDocumentsQueryStepTest {
     @ExperimentalCoroutinesApi
     @Test
     @Timeout(4)
-    internal fun `should return a failure when paging next page fails`() = runBlockingTest {
+    internal fun `should return a failure when paging next page fails`() = testDispatcherProvider.runTest {
         // given
         every { restClientFactory() } returns restClient
         val ctx = StepTestHelper.createStepContext<Int, Pair<Int, SearchResult<String>>>(input = 123)

@@ -8,15 +8,11 @@ import assertk.assertions.hasSize
 import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
 import assertk.assertions.isInstanceOf
-import assertk.assertions.isSameAs
 import assertk.assertions.prop
 import io.micronaut.context.ApplicationContext
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest
 import io.qalipsis.api.events.EventLevel
-import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.api.events.EventsPublisher
-import io.qalipsis.test.assertk.prop
-import io.qalipsis.test.assertk.typedProp
 import jakarta.inject.Inject
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -29,7 +25,7 @@ import java.time.Duration
 class ElasticsearchEventsPublisherConfigurationIntegrationTest {
 
     @Nested
-    @MicronautTest(propertySources = ["classpath:application-nopublisher.yml"])
+    @MicronautTest(propertySources = ["classpath:application-elasticsearch.yml"])
     inner class NoPublisher {
 
         @Inject
@@ -44,7 +40,7 @@ class ElasticsearchEventsPublisherConfigurationIntegrationTest {
     }
 
     @Nested
-    @MicronautTest(propertySources = ["classpath:application-withpublisher.yml"])
+    @MicronautTest(environments = ["withpublisher"])
     inner class WithPublisher {
 
         @Inject
@@ -76,16 +72,6 @@ class ElasticsearchEventsPublisherConfigurationIntegrationTest {
                 prop(ElasticsearchEventsConfiguration::shards).isEqualTo(3)
                 prop(ElasticsearchEventsConfiguration::replicas).isEqualTo(1)
                 prop(ElasticsearchEventsConfiguration::proxy).isEqualTo("http://localhost:4000")
-            }
-            assertThat(applicationContext.getBean(EventsLogger::class.java)).all {
-                typedProp<Collection<EventsPublisher>>("publishers").all {
-                    hasSize(1)
-                    any {
-                        it.isInstanceOf(ElasticsearchEventsPublisher::class).all {
-                            prop("configuration").isSameAs(configuration)
-                        }
-                    }
-                }
             }
 
         }

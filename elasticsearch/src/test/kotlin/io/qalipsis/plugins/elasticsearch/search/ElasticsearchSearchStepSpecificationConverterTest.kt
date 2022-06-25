@@ -119,7 +119,7 @@ internal class ElasticsearchSearchStepSpecificationConverterTest :
         // then
         creationContext.createdStep!!.let {
             assertThat(it).isInstanceOf(ElasticsearchDocumentsQueryStep::class).all {
-                prop("id").isEqualTo("my-step")
+                prop("name").isEqualTo("my-step")
                 prop("retryPolicy").isEqualTo(retryPolicy)
                 prop("restClientBuilder").isEqualTo(clientBuilder)
                 prop("indicesFactory").isEqualTo(indicesFactory)
@@ -159,7 +159,7 @@ internal class ElasticsearchSearchStepSpecificationConverterTest :
         // then
         creationContext.createdStep!!.let {
             assertThat(it).isInstanceOf(ElasticsearchDocumentsQueryStep::class).all {
-                prop("id").isNotNull()
+                prop("name").isNotNull()
                 prop("retryPolicy").isNull()
                 prop("restClientBuilder").isEqualTo(clientBuilder)
                 prop("indicesFactory").isEqualTo(indicesFactory)
@@ -315,7 +315,7 @@ internal class ElasticsearchSearchStepSpecificationConverterTest :
         // then
         creationContext.createdStep!!.let {
             assertThat(it).isInstanceOf(ElasticsearchDocumentsQueryStep::class).all {
-                prop("id").isEqualTo("my-step")
+                prop("name").isEqualTo("my-step")
                 prop("eventsLogger").isEqualTo(eventsLogger)
                 prop("meterRegistry").isNull()
                 prop("retryPolicy").isEqualTo(retryPolicy)
@@ -360,7 +360,7 @@ internal class ElasticsearchSearchStepSpecificationConverterTest :
         // then
         creationContext.createdStep!!.let {
             assertThat(it).isInstanceOf(ElasticsearchDocumentsQueryStep::class).all {
-                prop("id").isEqualTo("my-step")
+                prop("name").isEqualTo("my-step")
                 prop("eventsLogger").isNull()
                 prop("meterRegistry").isEqualTo(meterRegistry)
                 prop("retryPolicy").isEqualTo(retryPolicy)

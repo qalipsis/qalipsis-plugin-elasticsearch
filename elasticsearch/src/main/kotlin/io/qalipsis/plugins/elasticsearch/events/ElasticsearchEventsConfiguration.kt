@@ -2,6 +2,7 @@ package io.qalipsis.plugins.elasticsearch.events
 
 import io.micronaut.context.annotation.ConfigurationProperties
 import io.micronaut.context.annotation.Requires
+import io.qalipsis.api.config.EventsConfig
 import io.qalipsis.api.constraints.PositiveDuration
 import io.qalipsis.api.events.EventLevel
 import java.time.Duration
@@ -30,8 +31,8 @@ import javax.validation.constraints.NotNull
  *
  * @author Eric Jessé
  */
-@Requires(property = "events.export.elasticsearch.enabled", value = "true")
-@ConfigurationProperties("events.export.elasticsearch")
+@Requires(property = "${EventsConfig.EXPORT_CONFIGURATION}.elasticsearch.enabled", value = "true")
+@ConfigurationProperties("${EventsConfig.EXPORT_CONFIGURATION}.elasticsearch")
 internal class ElasticsearchEventsConfiguration {
 
     @field:NotNull

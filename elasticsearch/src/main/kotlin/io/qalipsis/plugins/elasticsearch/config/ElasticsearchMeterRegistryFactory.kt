@@ -9,7 +9,7 @@ import io.micronaut.context.annotation.Requires
 import io.micronaut.context.env.Environment
 import io.micronaut.core.naming.conventions.StringConvention
 import io.micronaut.core.util.StringUtils
-import io.qalipsis.api.meters.MetersConfig
+import io.qalipsis.api.config.MetersConfig
 import jakarta.inject.Singleton
 import java.util.Properties
 
@@ -20,7 +20,7 @@ import java.util.Properties
  */
 @Factory
 @Requirements(
-    Requires(property = MetersConfig.ENABLED, notEquals = StringUtils.FALSE),
+    Requires(property = MetersConfig.EXPORT_ENABLED, notEquals = StringUtils.FALSE),
     Requires(property = ElasticsearchMeterRegistryFactory.ELASTICSEARCH_ENABLED, notEquals = StringUtils.FALSE)
 )
 internal class ElasticsearchMeterRegistryFactory {
@@ -28,8 +28,8 @@ internal class ElasticsearchMeterRegistryFactory {
     @Singleton
     fun elasticsearchRegistry(environment: Environment): ElasticMeterRegistry {
         val properties = Properties()
-        properties.putAll(environment.getProperties(MetersConfig.CONFIGURATION, StringConvention.RAW))
-        properties.putAll(environment.getProperties(MetersConfig.CONFIGURATION, StringConvention.CAMEL_CASE))
+        properties.putAll(environment.getProperties(MetersConfig.EXPORT_CONFIGURATION, StringConvention.RAW))
+        properties.putAll(environment.getProperties(MetersConfig.EXPORT_CONFIGURATION, StringConvention.CAMEL_CASE))
 
         return ElasticMeterRegistry(object : ElasticConfig {
             override fun prefix() = "elasticsearch"
@@ -40,10 +40,10 @@ internal class ElasticsearchMeterRegistryFactory {
         }, Clock.SYSTEM)
     }
 
-    companion object {
+    internal companion object {
 
-        internal const val ELASTICSEARCH_CONFIGURATION = "${MetersConfig.CONFIGURATION}.elasticsearch"
+        private const val ELASTICSEARCH_CONFIGURATION = "${MetersConfig.EXPORT_CONFIGURATION}.elasticsearch"
 
-        internal const val ELASTICSEARCH_ENABLED = "$ELASTICSEARCH_CONFIGURATION.enabled"
+        const val ELASTICSEARCH_ENABLED = "$ELASTICSEARCH_CONFIGURATION.enabled"
     }
 }

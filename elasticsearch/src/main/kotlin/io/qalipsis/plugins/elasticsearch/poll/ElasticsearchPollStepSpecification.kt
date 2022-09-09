@@ -5,6 +5,7 @@ import io.qalipsis.api.annotations.Spec
 import io.qalipsis.api.scenario.StepSpecificationRegistry
 import io.qalipsis.api.steps.AbstractStepSpecification
 import io.qalipsis.api.steps.BroadcastSpecification
+import io.qalipsis.api.steps.ConfigurableStepSpecification
 import io.qalipsis.api.steps.LoopableSpecification
 import io.qalipsis.api.steps.SingletonConfiguration
 import io.qalipsis.api.steps.SingletonType
@@ -35,6 +36,7 @@ import kotlin.reflect.KClass
 interface ElasticsearchPollStepSpecification :
     StepSpecification<Unit, List<ElasticsearchDocument<Map<String, Any?>>>, PollDeserializable<Map<String, Any?>>>,
     ElasticsearchStepSpecification<Unit, List<ElasticsearchDocument<Map<String, Any?>>>, PollDeserializable<Map<String, Any?>>>,
+    ConfigurableStepSpecification<Unit, List<ElasticsearchDocument<Map<String, Any?>>>, PollDeserializable<Map<String, Any?>>>,
     LoopableSpecification, UnicastSpecification, BroadcastSpecification {
 
     /**
@@ -152,8 +154,10 @@ internal class ElasticsearchPollStepSpecificationImpl :
         monitoring.invoke(monitoringConfig)
     }
 
-    override fun <O : Any> deserialize(targetClass: KClass<O>,
-                                       fullDocument: Boolean): StepSpecification<Unit, List<ElasticsearchDocument<O>>, *> {
+    override fun <O : Any> deserialize(
+        targetClass: KClass<O>,
+        fullDocument: Boolean
+    ): StepSpecification<Unit, List<ElasticsearchDocument<O>>, *> {
         convertFullDocument = fullDocument
         flattenOutput = false
         this.targetClass = targetClass
@@ -171,8 +175,10 @@ internal class ElasticsearchPollStepSpecificationImpl :
         return this as StepSpecification<Unit, ElasticsearchDocument<Map<String, Any?>>, *>
     }
 
-    override fun <O : Any> flatten(targetClass: KClass<O>,
-                                   fullDocument: Boolean): StepSpecification<Unit, ElasticsearchDocument<O>, *> {
+    override fun <O : Any> flatten(
+        targetClass: KClass<O>,
+        fullDocument: Boolean
+    ): StepSpecification<Unit, ElasticsearchDocument<O>, *> {
         convertFullDocument = fullDocument
         flattenOutput = true
         this.targetClass = targetClass

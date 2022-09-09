@@ -3,6 +3,7 @@ package io.qalipsis.plugins.elasticsearch.save
 import io.qalipsis.api.annotations.Spec
 import io.qalipsis.api.context.StepContext
 import io.qalipsis.api.steps.AbstractStepSpecification
+import io.qalipsis.api.steps.ConfigurableStepSpecification
 import io.qalipsis.api.steps.StepMonitoringConfiguration
 import io.qalipsis.api.steps.StepSpecification
 import io.qalipsis.plugins.elasticsearch.Document
@@ -18,7 +19,8 @@ import org.elasticsearch.client.RestClient
 @Spec
 interface ElasticsearchSaveStepSpecification<I> :
     StepSpecification<I, ElasticsearchSaveResult<I>, ElasticsearchSaveStepSpecification<I>>,
-    ElasticsearchStepSpecification<I, ElasticsearchSaveResult<I>, ElasticsearchSaveStepSpecification<I>> {
+    ElasticsearchStepSpecification<I, ElasticsearchSaveResult<I>, ElasticsearchSaveStepSpecification<I>>,
+    ConfigurableStepSpecification<I, ElasticsearchSaveResult<I>, ElasticsearchSaveStepSpecification<I>> {
 
     /**
      * Configures the REST client to connect to Elasticsearch.

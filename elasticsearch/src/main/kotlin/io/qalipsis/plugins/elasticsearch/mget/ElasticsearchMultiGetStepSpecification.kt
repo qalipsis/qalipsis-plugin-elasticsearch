@@ -3,6 +3,7 @@ package io.qalipsis.plugins.elasticsearch.mget
 import com.fasterxml.jackson.databind.json.JsonMapper
 import io.qalipsis.api.annotations.Spec
 import io.qalipsis.api.context.StepContext
+import io.qalipsis.api.steps.ConfigurableStepSpecification
 import io.qalipsis.api.steps.StepMonitoringConfiguration
 import io.qalipsis.api.steps.StepSpecification
 import io.qalipsis.plugins.elasticsearch.AbstractElasticsearchQueryStepSpecification
@@ -24,6 +25,7 @@ import org.elasticsearch.client.RestClient
 @Spec
 interface ElasticsearchMultiGetStepSpecification<I> : Deserializable<I, Map<String, Any?>>,
     StepSpecification<I, Pair<I, SearchResult<Map<String, Any?>>>, Deserializable<I, Map<String, Any?>>>,
+    ConfigurableStepSpecification<I, Pair<I, SearchResult<Map<String, Any?>>>, Deserializable<I, Map<String, Any?>>>,
     ElasticsearchStepSpecification<I, Pair<I, SearchResult<Map<String, Any?>>>, Deserializable<I, Map<String, Any?>>> {
 
     /**

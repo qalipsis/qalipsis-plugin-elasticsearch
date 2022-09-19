@@ -40,5 +40,6 @@ internal class Elasticsearch7EventsPublisherIntegrationTest : AbstractElasticsea
             it.hostConfig!!.withMemory((512 * 1e20).toLong()).withCpuCount(2)
         }
             .withEnv("ES_JAVA_OPTS", "-Xms256m -Xmx256m")
+            .withEnv("action.destructive_requires_name", "false")
     }
 }

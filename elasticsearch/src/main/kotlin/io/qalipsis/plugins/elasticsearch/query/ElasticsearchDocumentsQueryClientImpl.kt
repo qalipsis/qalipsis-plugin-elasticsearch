@@ -16,6 +16,7 @@
 
 package io.qalipsis.plugins.elasticsearch.query
 
+import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.databind.node.ArrayNode
@@ -87,7 +88,7 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
         request.addParameters(parameters)
         request.setJsonEntity(query)
 
-        return withContext(ioCoroutineContext) {
+        val result = withContext(ioCoroutineContext) {
             executeDocumentFetchingRequest(
                 restClient,
                 request,
@@ -96,6 +97,10 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
                 eventTags
             )
         }
+        if(result.failure != null) {
+            throw result.failure
+        }
+        return result
     }
 
     override suspend fun scroll(
@@ -159,7 +164,10 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
                     eventsLogger?.info("${eventPrefix}.success.times", 1, tags = eventTags)
                 } catch (e: Exception) {
                     elasticsearchDocumentsQueryMetrics?.failureCounter?.increment(1.0)
-                    eventsLogger?.warn("${eventPrefix}.failure.times", 1, tags = eventTags)
+                    eventsLogger?.apply {
+                        warn("${eventPrefix}.failure.times", 1, tags = eventTags)
+                        error("${eventPrefix}.failure.records", e.message, tags = eventTags)
+                    }
                     runBlocking(ioCoroutineContext) {
                         resultsSlot.set(SearchResult(failure = e))
                     }
@@ -177,10 +185,17 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
                             e.response.entity.contentLength,
                             tags = eventTags
                         )
+                        val exception = extractAndLogError(e, eventsLogger, eventTags)
                         resultsSlot.set(
-                            SearchResult(failure = ElasticsearchException(EntityUtils.toString(e.response.entity)))
+                            SearchResult(failure = exception)
                         )
                     } else {
+                        eventsLogger?.apply {
+                            error(
+                                name = "${eventPrefix}.failure.records",
+                                value = e.message,
+                                tags = eventTags)
+                        }
                         resultsSlot.set(SearchResult(failure = e))
                     }
                 }
@@ -270,6 +285,20 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
     companion object {
         @JvmStatic
         private val log = logger()
+    }
+
+    private fun extractAndLogError(e: Exception, eventsLogger: EventsLogger?, eventTags: Map<String, String>?): ElasticsearchException {
+        val res = "{\"error" + e.message?.split("error")?.get(1)
+        val errorBody = res.let {
+            jsonMapper.readValue(it, object : TypeReference<Map<String?, Any?>?>() {})
+        }
+        val error = errorBody?.get("error") as Map<*, *>
+        eventsLogger?.error(
+            name = error["type"].toString(),
+            value = error["reason"],
+            tags = eventTags!!
+        )
+        return ElasticsearchException("${error["type"]} : caused by ${error["reason"]}")
     }
 
 }

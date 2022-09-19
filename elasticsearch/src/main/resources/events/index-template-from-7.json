@@ -42,7 +42,7 @@
         "store": true
       },
       "tags": {
-        "type": "object",
+        "type": "nested",
         "include_in_root": true
       },
       "message": {

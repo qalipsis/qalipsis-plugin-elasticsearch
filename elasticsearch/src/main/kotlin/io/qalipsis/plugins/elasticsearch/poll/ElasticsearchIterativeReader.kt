@@ -16,6 +16,7 @@
 
 package io.qalipsis.plugins.elasticsearch.poll
 
+import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.node.ObjectNode
@@ -28,7 +29,8 @@ import io.qalipsis.api.context.StepStartStopContext
 import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.api.logging.LoggerHelper.logger
 import io.qalipsis.api.steps.datasource.DatasourceIterativeReader
-import io.qalipsis.api.sync.Latch
+import io.qalipsis.api.sync.ImmutableSlot
+import io.qalipsis.plugins.elasticsearch.ElasticsearchException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -137,9 +139,6 @@ internal class ElasticsearchIterativeReader(
             while (running) {
                 try {
                     poll(restClient)
-                    if (running) {
-                        delay(pollDelay.toMillis())
-                    }
                 } catch (e: InterruptedException) {
                     throw e
                 } catch (e: CancellationException) {
@@ -149,6 +148,9 @@ internal class ElasticsearchIterativeReader(
                     log.error(e) { e.message }
                 } finally {
                     requestCancellable = null
+                }
+                if (running) {
+                    delay(pollDelay.toMillis())
                 }
             }
         } finally {
@@ -175,7 +177,7 @@ internal class ElasticsearchIterativeReader(
         request.setJsonEntity(elasticsearchPollStatement.query)
         log.trace { "Polling with request $request and source ${elasticsearchPollStatement.query}" }
 
-        val latch = Latch(true)
+        val slot = ImmutableSlot<Result<Unit>>()
         val requestStart = System.nanoTime()
         requestCancellable = restClient.performRequestAsync(request, object : ResponseListener {
             override fun onSuccess(response: Response) {
@@ -186,15 +188,23 @@ internal class ElasticsearchIterativeReader(
                     successCounter?.increment(1.0)
                     eventsLogger?.info("${eventPrefix}.success.bytes", totalBytes, tags = eventTags!!)
                     processResponse(request, response, requestStart)
+                    runBlocking(ioCoroutineContext) {
+                        slot.set(Result.success(Unit))
+                    }
                 } catch (e: Exception) {
                     failureCounter?.increment(1.0)
+                    log.error(e) { e.message }
                     eventsLogger?.apply {
                         info("${eventPrefix}.failure.records", 1.0, tags = eventTags!!)
+                        error(
+                            name = "${eventPrefix}.failure.records",
+                            value = e.message,
+                            tags = eventTags!!
+                        )
                     }
-                    log.error(e) { e.message }
-                }
-                runBlocking(ioCoroutineContext) {
-                    latch.release()
+                    runBlocking(ioCoroutineContext) {
+                        slot.set(Result.failure(e))
+                    }
                 }
             }
 
@@ -209,15 +219,26 @@ internal class ElasticsearchIterativeReader(
                         info("${eventPrefix}.failure.records", 1.0, tags = eventTags!!)
                     }
                     log.error { "Received error from the server: ${EntityUtils.toString(e.response.entity)}" }
+                    val exception = extractAndLogError(e)
+                    runBlocking(ioCoroutineContext) {
+                        slot.set(Result.failure(exception))
+                    }
                 } else {
                     log.error(e) { e.message }
-                }
-                runBlocking(ioCoroutineContext) {
-                    latch.release()
+                    eventsLogger?.apply {
+                        error(
+                            name = "${eventPrefix}.failure.records",
+                            value = e.message,
+                            tags = eventTags!!
+                        )
+                    }
+                    runBlocking(ioCoroutineContext) {
+                        slot.set(Result.failure(e))
+                    }
                 }
             }
         })
-        latch.await()
+        slot.get().getOrThrow()
     }
 
     private fun processResponse(request: Request, response: Response, requestStartNanos: Long) {
@@ -290,5 +311,19 @@ internal class ElasticsearchIterativeReader(
         @JvmStatic
         private val log = logger()
 
+    }
+
+    private fun extractAndLogError(e: Exception): ElasticsearchException {
+        val res = "{\"error" + e.message?.split("error")?.get(1)
+        val errorBody = res.let {
+            jsonMapper.readValue(it, object : TypeReference<Map<String?, Any?>?>() {})
+        }
+        val error = errorBody?.get("error") as Map<*, *>
+        eventsLogger?.error(
+            name = error["type"].toString(),
+            value = error["reason"],
+            tags = eventTags!!
+        )
+        return ElasticsearchException("${error["type"]} : caused by ${error["reason"]}")
     }
 }

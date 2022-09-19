@@ -21,6 +21,7 @@ import assertk.assertThat
 import assertk.assertions.hasSameSizeAs
 import assertk.assertions.index
 import assertk.assertions.isEqualTo
+import assertk.assertions.isNotNull
 import assertk.assertions.prop
 import com.fasterxml.jackson.databind.node.ObjectNode
 import io.aerisconsulting.catadioptre.coInvokeInvisible
@@ -31,6 +32,7 @@ import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.plugins.elasticsearch.AbstractElasticsearchIntegrationTest
 import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_6_IMAGE
 import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_7_IMAGE
+import io.qalipsis.plugins.elasticsearch.ElasticsearchException
 import io.qalipsis.test.coroutines.TestDispatcherProvider
 import io.qalipsis.test.io.readResource
 import io.qalipsis.test.io.readResourceLines
@@ -39,6 +41,7 @@ import kotlinx.coroutines.channels.Channel
 import org.apache.http.HttpHost
 import org.elasticsearch.client.RestClient
 import org.junit.jupiter.api.Timeout
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.extension.RegisterExtension
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
@@ -52,6 +55,7 @@ import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import java.util.stream.Stream
+import kotlin.coroutines.CoroutineContext
 import kotlin.math.pow
 
 /**
@@ -104,7 +108,7 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
                 } """.trimIndent()
             val reader = ElasticsearchIterativeReader(
                 ioCoroutineScope = this,
-                ioCoroutineContext = testDispatcherProvider.io(),
+                ioCoroutineContext = testDispatcherProvider.io() as CoroutineContext,
                 restClientBuilder = {
                     RestClient.builder(HttpHost("localhost", versionAndPort.port, "http")).build()
                 },
@@ -126,8 +130,121 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
                 reader,
                 firstBatch,
                 secondBatch,
-                thirdBatch
+                thirdBatch,
+                "events"
             )
+        }
+
+    /**
+     * This test generates an exception when there is an error while polling data.
+     */
+    @ParameterizedTest(name = "should generate an exception when the query is wrong")
+    @MethodSource("containers")
+    @Timeout(20)
+    internal fun `should generate an exception when the query is wrong`(versionAndPort: ContainerVersionAndPort) =
+        testDispatcherProvider.run {
+            // given
+            val firstBatch = records.subList(0, 11)
+            val secondBatch = records.subList(11, 26)
+            val thirdBatch = records.subList(26, 39)
+            val client = RestClient.builder(HttpHost("localhost", versionAndPort.port, "http")).build()
+            val query = """
+                {
+                    "quer": {
+                        "wildcard": {
+                            "device": "Car"
+                        }
+                    },
+                    "sort": ["timestamp","device"]
+                } """.trimIndent()
+            val reader = ElasticsearchIterativeReader(
+                ioCoroutineScope = this,
+                ioCoroutineContext = testDispatcherProvider.io() as CoroutineContext,
+                restClientBuilder = { client },
+                index = "events-2",
+                queryParams = emptyMap(),
+                elasticsearchPollStatement = ElasticsearchPollStatementImpl {
+                    jsonMapper.readTree(query) as ObjectNode
+                },
+                jsonMapper = jsonMapper,
+                pollDelay = Duration.ofMillis(POLL_TIMEOUT),
+                resultsChannelFactory = { Channel(5) },
+                meterRegistry = meterRegistry,
+                eventsLogger = eventsLogger
+            )
+            reader.init()
+
+            // when
+            val errorMessage = assertThrows<ElasticsearchException> {
+                `populate, read and assert`(
+                    versionAndPort.port,
+                    versionAndPort.version,
+                    reader,
+                    firstBatch,
+                    secondBatch,
+                    thirdBatch,
+                    "events-2"
+                )
+            }.message
+
+            // then
+            assertThat(errorMessage).isNotNull()
+        }
+
+
+    /**
+     * This test generates an exception when there is an error while polling data.
+     */
+    @ParameterizedTest(name = "should generate an exception when the index does not exist")
+    @MethodSource("containers")
+    @Timeout(20)
+    internal fun `should generate an exception when the index does not exist`(versionAndPort: ContainerVersionAndPort) =
+        testDispatcherProvider.run {
+            // given
+            val firstBatch = records.subList(0, 11)
+            val secondBatch = records.subList(11, 26)
+            val thirdBatch = records.subList(26, 39)
+
+            val client = RestClient.builder(HttpHost("localhost", versionAndPort.port, "http")).build()
+            val query = """ {
+                    "query": {
+                        "wildcard": {
+                            "device": "Car*"
+                        }
+                    },
+                    "sort": ["timestamp","device"]
+                } """.trimIndent()
+            val reader = ElasticsearchIterativeReader(
+                ioCoroutineScope = this,
+                ioCoroutineContext = testDispatcherProvider.io() as CoroutineContext,
+                restClientBuilder = { client },
+                index = "event-3",
+                queryParams = emptyMap(),
+                elasticsearchPollStatement = ElasticsearchPollStatementImpl {
+                    jsonMapper.readTree(query) as ObjectNode
+                },
+                jsonMapper = jsonMapper,
+                pollDelay = Duration.ofMillis(POLL_TIMEOUT),
+                resultsChannelFactory = { Channel(5) },
+                meterRegistry = meterRegistry,
+                eventsLogger = eventsLogger
+            )
+
+            // when
+            val errorMessage = assertThrows<ElasticsearchException> {
+                `populate, read and assert`(
+                    versionAndPort.port,
+                    versionAndPort.version,
+                    reader,
+                    firstBatch,
+                    secondBatch,
+                    thirdBatch,
+                    "not-existing-index"
+                )
+            }.message
+
+            // then
+            assertThat(errorMessage).isNotNull()
         }
 
     /**
@@ -141,26 +258,27 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
         reader: ElasticsearchIterativeReader,
         firstBatch: List<Event>,
         secondBatch: List<Event>,
-        thirdBatch: List<Event>
+        thirdBatch: List<Event>,
+        index: String
     ) {
         val client = RestClient.builder(HttpHost("localhost", port, "http")).build()
-        createIndex(client, "events", readResource("events-mapping-$version.json"))
+        createIndex(client, index, readResource("events-mapping-$version.json"))
 
         // when
         // Executes a first poll to verify that no empty set is provided.
         reader.start(stepStartStopContext)
         reader.coInvokeInvisible<Unit>("poll", client)
 
-        bulk(client, "events", firstBatch.map { DocumentWithId("${UUID.randomUUID()}", it.json) }, version < 7)
-        assertThat(count(client, "events")).isEqualTo(firstBatch.size)
+        bulk(client, index, firstBatch.map { DocumentWithId("${UUID.randomUUID()}", it.json) }, version < 7)
+        assertThat(count(client, index)).isEqualTo(firstBatch.size)
         reader.coInvokeInvisible<Unit>("poll", client)
 
-        bulk(client, "events", secondBatch.map { DocumentWithId("${UUID.randomUUID()}", it.json) }, version < 7)
-        assertThat(count(client, "events")).isEqualTo(firstBatch.size + secondBatch.size)
+        bulk(client, index, secondBatch.map { DocumentWithId("${UUID.randomUUID()}", it.json) }, version < 7)
+        assertThat(count(client, index)).isEqualTo(firstBatch.size + secondBatch.size)
         reader.coInvokeInvisible<Unit>("poll", client)
 
-        bulk(client, "events", thirdBatch.map { DocumentWithId("${UUID.randomUUID()}", it.json) }, version < 7)
-        assertThat(count(client, "events")).isEqualTo(firstBatch.size + secondBatch.size + thirdBatch.size)
+        bulk(client, index, thirdBatch.map { DocumentWithId("${UUID.randomUUID()}", it.json) }, version < 7)
+        assertThat(count(client, index)).isEqualTo(firstBatch.size + secondBatch.size + thirdBatch.size)
         reader.coInvokeInvisible<Unit>("poll", client)
 
         // then
@@ -212,6 +330,7 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
                     cmd.hostConfig!!.withMemory(512 * 1024.0.pow(2).toLong()).withCpuCount(2)
                 }
                 withEnv("ES_JAVA_OPTS", "-Xms256m -Xmx256m")
+                withEnv("action.destructive_requires_name", "false")
             }
 
         @Container
@@ -222,6 +341,7 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
                     cmd.hostConfig!!.withMemory(512 * 1024.0.pow(2).toLong()).withCpuCount(2)
                 }
                 withEnv("ES_JAVA_OPTS", "-Xms256m -Xmx256m")
+                withEnv("action.destructive_requires_name", "false")
             }
 
         private const val POLL_TIMEOUT = 1000L

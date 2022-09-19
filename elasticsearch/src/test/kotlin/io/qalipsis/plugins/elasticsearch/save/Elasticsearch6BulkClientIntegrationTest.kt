@@ -35,10 +35,10 @@ internal class Elasticsearch6BulkClientIntegrationTest : AbstractElasticsearchBu
         @Container
         @JvmStatic
         private val CONTAINER =
-            ElasticsearchContainer(DockerImageName.parse(ELASTICSEARCH_6_IMAGE)
-        ).withCreateContainerCmdModifier {
-            it.hostConfig!!.withMemory((512 * 1e20).toLong()).withCpuCount(2)
-        }
-            .withEnv("ES_JAVA_OPTS", "-Xms256m -Xmx256m")
+            ElasticsearchContainer(DockerImageName.parse(ELASTICSEARCH_6_IMAGE))
+                .withCreateContainerCmdModifier {
+                    it.hostConfig!!.withMemory((512 * 1e20).toLong()).withCpuCount(2)
+                }
+                .withEnv("ES_JAVA_OPTS", "-Xms256m -Xmx256m")
     }
 }

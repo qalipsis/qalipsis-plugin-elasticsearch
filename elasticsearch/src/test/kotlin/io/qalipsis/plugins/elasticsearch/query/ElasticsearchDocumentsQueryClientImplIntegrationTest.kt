@@ -26,6 +26,7 @@ import io.qalipsis.plugins.elasticsearch.AbstractElasticsearchIntegrationTest
 import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_6_IMAGE
 import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_7_IMAGE
 import io.qalipsis.plugins.elasticsearch.ElasticsearchDocument
+import io.qalipsis.plugins.elasticsearch.ElasticsearchException
 import io.qalipsis.plugins.elasticsearch.query.model.ElasticsearchDocumentsQueryMetrics
 import io.qalipsis.test.coroutines.TestDispatcherProvider
 import io.qalipsis.test.io.readResource
@@ -37,6 +38,7 @@ import org.elasticsearch.client.RestClient
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Timeout
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.extension.RegisterExtension
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
@@ -143,6 +145,42 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
                 prop(SearchResult<Event>::searchAfterTieBreaker).isNull()
             }
         }
+
+    @ParameterizedTest(name = "should throw an exception when there is a failure")
+    @MethodSource("containers")
+    @Timeout(20)
+    internal fun `should throw an exception when there is a failure fetching documents for the cars`(versionAndPort: ContainerVersionAndPort) =
+        testDispatcherProvider.run {
+            // given
+            val client = clientsByVersion[versionAndPort.version]!!
+
+            @Suppress("UNCHECKED_CAST")
+            val queryClient = ElasticsearchDocumentsQueryClientImpl(
+                ioCoroutineContext = this.coroutineContext,
+                endpoint = "_search",
+                jsonMapper = jsonMapper,
+                documentsExtractor = { (it.get("hits")?.get("hits") as ArrayNode).toList() as List<ObjectNode> },
+                converter = { jsonMapper.treeToValue(it.get("_source"), Event::class.java) }
+            )
+
+            // when
+            val errorMessage = assertThrows<ElasticsearchException> {
+                queryClient.execute(
+                    client,
+                    listOf("events"),
+                    """{"quer":{"bool":{"must":[{"match_all":{}}],"filter":[{"wildcard":{"device":"Car"}}]}}}""",
+                    mapOf("size" to "100"),
+                    elasticsearchDocumentsQueryMetrics,
+                    eventsLogger,
+                    eventTags
+                )
+            }.message
+
+
+            // then
+            assertThat(errorMessage).isNotNull()
+        }
+
 
     @ParameterizedTest(
         name = "should fetch the first page of the documents for the cars and return the cursor when a scroll time is set (ES {0})"
@@ -324,21 +362,17 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
             )
 
             // when
-            val results = queryClient.execute(
-                client, listOf("unexisting-index"), "", emptyMap(),
-                elasticsearchDocumentsQueryMetrics,
-                eventsLogger,
-                eventTags
-            )
+            val errorMessage = assertThrows<ElasticsearchException> {
+                queryClient.execute(
+                    client, listOf("unexisting-index"), "", emptyMap(),
+                    elasticsearchDocumentsQueryMetrics,
+                    eventsLogger,
+                    eventTags
+                )
+            }
 
             // then
-            assertThat(results).all {
-                prop(SearchResult<Event>::isFailure).isTrue()
-                prop(SearchResult<Event>::totalResults).isEqualTo(0)
-                prop(SearchResult<Event>::results).isEmpty()
-                prop(SearchResult<Event>::scrollId).isNull()
-                prop(SearchResult<Event>::searchAfterTieBreaker).isNull()
-            }
+            assertThat(errorMessage).isNotNull()
         }
 
     data class Event(
@@ -367,6 +401,7 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
                     cmd.hostConfig!!.withMemory(512 * 1024.0.pow(2).toLong()).withCpuCount(2)
                 }
                 withEnv("ES_JAVA_OPTS", "-Xms256m -Xmx256m")
+                withEnv("action.destructive_requires_name", "false")
             }
 
         @Container
@@ -377,6 +412,7 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
                     cmd.hostConfig!!.withMemory(512 * 1024.0.pow(2).toLong()).withCpuCount(2)
                 }
                 withEnv("ES_JAVA_OPTS", "-Xms256m -Xmx256m")
+                withEnv("action.destructive_requires_name", "false")
             }
 
         @JvmStatic

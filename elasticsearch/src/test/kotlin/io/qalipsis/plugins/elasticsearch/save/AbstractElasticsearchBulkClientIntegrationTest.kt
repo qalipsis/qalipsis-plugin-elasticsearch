@@ -18,39 +18,46 @@ package io.qalipsis.plugins.elasticsearch.save
 
 import assertk.all
 import assertk.assertThat
+import assertk.assertions.isBetween
 import assertk.assertions.isEqualTo
 import assertk.assertions.isInstanceOf
 import assertk.assertions.isNotNull
-import assertk.assertions.isNull
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
-import com.fasterxml.jackson.module.kotlin.KotlinModule
+import com.fasterxml.jackson.module.kotlin.kotlinModule
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Tags
 import io.micrometer.core.instrument.Timer
 import io.mockk.confirmVerified
 import io.mockk.every
+import io.mockk.impl.annotations.RelaxedMockK
 import io.mockk.verify
 import io.qalipsis.api.context.StepStartStopContext
 import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.plugins.elasticsearch.Document
 import io.qalipsis.plugins.elasticsearch.ElasticsearchBulkResponse
+import io.qalipsis.plugins.elasticsearch.ElasticsearchException
 import io.qalipsis.test.assertk.prop
+import io.qalipsis.test.assertk.typedProp
 import io.qalipsis.test.coroutines.TestDispatcherProvider
+import io.qalipsis.test.mockk.WithMockk
 import io.qalipsis.test.mockk.relaxedMockk
 import org.apache.http.HttpHost
 import org.apache.http.util.EntityUtils
 import org.elasticsearch.client.Request
 import org.elasticsearch.client.RestClient
+import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.extension.RegisterExtension
 import org.testcontainers.elasticsearch.ElasticsearchContainer
 import org.testcontainers.junit.jupiter.Testcontainers
@@ -65,6 +72,7 @@ import java.util.concurrent.TimeUnit
  *
  * @author Eric Jessé
  */
+@WithMockk
 @Testcontainers
 @Timeout(3, unit = TimeUnit.MINUTES)
 internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
@@ -83,40 +91,52 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
 
     protected lateinit var client: ElasticsearchSaveQueryClientImpl
 
-    private val eventsLogger = relaxedMockk<EventsLogger>()
+    @RelaxedMockK
+    protected lateinit var eventsLogger: EventsLogger
 
-    private val documentsCount = relaxedMockk<Counter>()
+    @RelaxedMockK
+    protected lateinit var documentsCount: Counter
 
-    private var timeToResponseTimer = relaxedMockk<Timer>()
+    @RelaxedMockK
+    protected lateinit var timeToResponseTimer: Timer
 
-    private var successCounter = relaxedMockk<Counter>()
+    @RelaxedMockK
+    protected lateinit var successCounter: Counter
 
-    private var failureCounter = relaxedMockk<Counter>()
+    @RelaxedMockK
+    protected lateinit var failureCounter: Counter
 
-    private var savedBytesCounter = relaxedMockk<Counter>()
+    @RelaxedMockK
+    protected lateinit var savedBytesCounter: Counter
 
-    private var failureBytesCounter = relaxedMockk<Counter>()
+    @RelaxedMockK
+    protected lateinit var failureBytesCounter: Counter
 
     protected val jsonMapper = JsonMapper().also {
         it.registerModule(JavaTimeModule())
-        it.registerModule(KotlinModule())
+        it.registerModule(kotlinModule { })
         it.registerModule(Jdk8Module())
     }
 
-    @BeforeEach
-    internal fun setUp() {
+    @BeforeAll
+    fun setUpAll() {
         val url = "http://${container.httpHostAddress}"
         restClient = RestClient.builder(HttpHost.create(url)).build()
     }
 
     @AfterEach
-    internal fun tearDown() {
+    fun tearDown() {
+        restClient.performRequest(Request("DELETE", "/_all"))
+    }
+
+    @AfterAll
+    fun tearDownAll() {
         restClient.close()
     }
 
     @Test
     @Timeout(30)
-    internal fun `should export data`() = testDispatcherProvider.run {
+    fun `should export data`() = testDispatcherProvider.run {
         val metersTags = relaxedMockk<Tags>()
         val meterRegistry = relaxedMockk<MeterRegistry> {
             every { counter("elasticsearch-save-received-documents", refEq(metersTags)) } returns documentsCount
@@ -151,7 +171,7 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
                 prop("savedDocuments").isEqualTo(2)
                 prop("failedDocuments").isEqualTo(0)
                 prop("timeToResponse").isNotNull().isInstanceOf(Duration::class.java)
-                prop("bytesToSave").isNotNull().isEqualTo(463L)
+                typedProp<Long>("bytesToSave").isNotNull().isBetween(463L, 464L)
                 prop("documentsToSave").isEqualTo(2)
             }
             prop("responseBody").isNotNull().isInstanceOf(ElasticsearchBulkResponse::class.java).all {
@@ -161,8 +181,7 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
         }
 
         val retrievalPayload = refreshIndicesAndFetchAllDocuments()
-        val sortedHits = retrievalPayload.withArray("hits").toMutableList()
-        sortedHits.sortBy { it.get("_index").asText() }
+        val sortedHits = retrievalPayload.withArray("hits").toMutableList().sortedBy { it.get("_index").asText() }
         var counter = 1
         sortedHits.forEach {
             (it["_source"] as ObjectNode).apply {
@@ -178,16 +197,14 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
             documentsCount.increment(2.0)
             timeToResponseTimer.record(more(0L), TimeUnit.NANOSECONDS)
             successCounter.increment(2.0)
-            savedBytesCounter.increment(463.0)
+            savedBytesCounter.increment(withArg { assertThat(it).isBetween(463.0, 464.0) })
         }
         confirmVerified(documentsCount, timeToResponseTimer, successCounter, savedBytesCounter)
-
-        client.stop(startStopContext)
     }
 
     @Test
-    @Timeout(5)
-    internal fun `should throw an exception when a document is invalid`() = testDispatcherProvider.run {
+    @Timeout(30)
+    fun `should generate failure when some documents are invalid JSON`() = testDispatcherProvider.run {
         val metersTags = relaxedMockk<Tags>()
         val meterRegistry = relaxedMockk<MeterRegistry> {
             every { counter("elasticsearch-save-received-documents", refEq(metersTags)) } returns documentsCount
@@ -195,7 +212,6 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
             every { counter("elasticsearch-save-successes", refEq(metersTags)) } returns successCounter
             every { counter("elasticsearch-save-failures", refEq(metersTags)) } returns failureCounter
             every { counter("elasticsearch-save-success-bytes", refEq(metersTags)) } returns savedBytesCounter
-            every { counter("elasticsearch-save-failure-bytes", refEq(metersTags)) } returns failureBytesCounter
         }
         val startStopContext = relaxedMockk<StepStartStopContext> {
             every { toMetersTags() } returns metersTags
@@ -206,50 +222,33 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
             ioCoroutineScope = this,
             clientBuilder = { restClient },
             jsonMapper = jsonMapper,
-            keepElasticsearchBulkResponse = false,
+            keepElasticsearchBulkResponse = true,
             meterRegistry = meterRegistry,
             eventsLogger = eventsLogger
         )
         client.start(startStopContext)
 
         val tags: Map<String, String> = emptyMap()
-
         val documents = listOf(
-            Document("key1", "val1", null, """"query": "data1"""),
-            Document("index", "_doc", null, """{"query": "data3","count": 7}""")
+            Document("index1", "_doc", null, """{"query": "data1","count": girl}"""),
+            Document("index2", "_doc", null, """{"query": "data1","count": asa}"""),
+            Document("index1", "_doc", null, """{"query": "data2","count": 7}""")
         )
-        val resultOfExecute = client.execute(documents, tags)
-        assertThat(resultOfExecute).isInstanceOf(ElasticsearchBulkResult::class.java).all {
-            prop("meters").isNotNull().isInstanceOf(ElasticsearchBulkMeters::class.java).all {
-                prop("savedDocuments").isEqualTo(1)
-                prop("failedDocuments").isEqualTo(1)
-                prop("timeToResponse").isNotNull().isInstanceOf(Duration::class.java)
-                prop("documentsToSave").isEqualTo(2)
-            }
-            prop("responseBody").isNull()
-        }
-        val retrievalPayload = refreshIndicesAndFetchAllDocuments()
-        val hits = retrievalPayload.withArray("hits")
-        Assertions.assertEquals(1, hits.size())
-        hits.forEach { item ->
-            (item["_source"] as ObjectNode).apply {
-                Assertions.assertEquals("data3", this.get("query").asText())
-                Assertions.assertEquals("7", this.get("count").asText())
-            }
-            Assertions.assertEquals("index", item["_index"].asText())
-        }
 
-        restClient.performRequest(Request("DELETE", "/index/_doc/${hits.get(0).get("_id").asText()}"))
+        //when
+        val errorMessage = assertThrows<ElasticsearchException> {
+            client.execute(documents, tags)
+        }.message
 
+        //then
+        assertThat(errorMessage).isNotNull()
         verify {
-            documentsCount.increment(2.0)
+            documentsCount.increment(3.0)
+            failureCounter.increment(2.0)
             timeToResponseTimer.record(more(0L), TimeUnit.NANOSECONDS)
-            failureCounter.increment(1.0)
             successCounter.increment(1.0)
         }
-        confirmVerified(documentsCount, timeToResponseTimer, failureCounter, successCounter)
-
-        client.stop(startStopContext)
+        confirmVerified(documentsCount, timeToResponseTimer, successCounter, failureCounter)
     }
 
     private fun refreshIndicesAndFetchAllDocuments(): ObjectNode {

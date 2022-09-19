@@ -117,6 +117,40 @@ internal class ElasticsearchSearchStepSpecificationImplTest {
     }
 
     @Test
+    internal fun `should fail when specification is not right`() {
+        val clientBuilder: () -> RestClient = relaxedMockk()
+        val mapperConfigurer: (JsonMapper) -> Unit = relaxedMockk()
+        val indicesFactory: suspend (ctx: StepContext<*, *>, input: Int) -> List<String> = relaxedMockk()
+        val queryFactory: suspend (ctx: StepContext<*, *>, input: Int) -> String = { _, _ -> """{"query":{"match_all":{}},"sort":"_id"}""" }
+        val paramsFactory: suspend (ctx: StepContext<*, *>, input: Int) -> Map<String, String?> = relaxedMockk()
+        val previousStep = DummyStepSpecification()
+        previousStep.elasticsearch().search {
+            name = "my-step"
+            client(clientBuilder)
+            mapper(mapperConfigurer)
+            index(indicesFactory)
+            query(queryFactory)
+            queryParameters(paramsFactory)
+            monitoring {
+                all()
+            }
+            fetchAll()
+        }
+
+        assertThat(previousStep.nextSteps[0]).isInstanceOf(ElasticsearchSearchStepSpecificationImpl::class).all {
+            prop(ElasticsearchSearchStepSpecificationImpl<*>::name).isEqualTo("my-step")
+            prop(ElasticsearchSearchStepSpecificationImpl<*>::client).isSameAs(clientBuilder)
+            prop(ElasticsearchSearchStepSpecificationImpl<*>::mapper).isSameAs(mapperConfigurer)
+            prop(ElasticsearchSearchStepSpecificationImpl<*>::queryFactory).isSameAs(queryFactory)
+            prop(ElasticsearchSearchStepSpecificationImpl<*>::paramsFactory).isSameAs(paramsFactory)
+            prop(ElasticsearchSearchStepSpecificationImpl<*>::indicesFactory).isSameAs(indicesFactory)
+            prop(ElasticsearchSearchStepSpecificationImpl<*>::convertFullDocument).isFalse()
+            prop(ElasticsearchSearchStepSpecificationImpl<*>::targetClass).isEqualTo(Map::class)
+            prop(ElasticsearchSearchStepSpecificationImpl<*>::fetchAll).isTrue()
+        }
+    }
+
+    @Test
     internal fun `should deserialize the source only to the expected class`() {
         val previousStep = DummyStepSpecification()
         previousStep.elasticsearch().search {}.deserialize(Random::class)

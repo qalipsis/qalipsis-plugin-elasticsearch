@@ -49,9 +49,9 @@ object PollScenario {
 
     var esPort: Int = 0
 
-    @Scenario
+    @Scenario("elasticsearch-poll")
     fun pollData() {
-        scenario("elasticsearch-poll") {
+        scenario {
             minionsCount = minions
             profile {
                 // Starts all at once.

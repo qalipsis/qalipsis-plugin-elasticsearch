@@ -33,6 +33,7 @@ import com.fasterxml.jackson.databind.json.JsonMapper
 import io.aerisconsulting.catadioptre.getProperty
 import io.mockk.confirmVerified
 import io.qalipsis.api.scenario.StepSpecificationRegistry
+import io.qalipsis.api.scenario.TestScenarioFactory
 import io.qalipsis.api.scenario.scenario
 import io.qalipsis.api.steps.SingletonConfiguration
 import io.qalipsis.api.steps.SingletonType
@@ -53,7 +54,7 @@ internal class ElasticsearchPollStepSpecificationImplTest {
 
     @Test
     internal fun `should add minimal specification to the scenario`() {
-        val scenario = scenario("my-scenario") as StepSpecificationRegistry
+        val scenario = TestScenarioFactory.scenario("my-scenario") as StepSpecificationRegistry
         scenario.elasticsearch().poll {
             pollDelay(Duration.ofSeconds(12))
         }
@@ -94,7 +95,7 @@ internal class ElasticsearchPollStepSpecificationImplTest {
         val mapperConfigurer: (JsonMapper) -> Unit = relaxedMockk()
         val query = """{"size":0,"query":{"bool":{"must":[{"match_all":{}}]}},"sort":"timestamp"}"""
         val queryBuilder: () -> String = { query }
-        val scenario = scenario("my-scenario") as StepSpecificationRegistry
+        val scenario = TestScenarioFactory.scenario("my-scenario") as StepSpecificationRegistry
         scenario.elasticsearch().poll {
             name = "my-step"
             client(clientBuilder)
@@ -135,7 +136,7 @@ internal class ElasticsearchPollStepSpecificationImplTest {
 
     @Test
     internal fun `should deserialize the source only to the expected class`() {
-        val scenario = scenario("my-scenario") as StepSpecificationRegistry
+        val scenario = TestScenarioFactory.scenario("my-scenario") as StepSpecificationRegistry
         scenario.elasticsearch().poll {
             pollDelay(Duration.ofSeconds(12))
         }.deserialize(Random::class)
@@ -149,7 +150,7 @@ internal class ElasticsearchPollStepSpecificationImplTest {
 
     @Test
     internal fun `should deserialize the full document`() {
-        val scenario = scenario("my-scenario") as StepSpecificationRegistry
+        val scenario = TestScenarioFactory.scenario("my-scenario") as StepSpecificationRegistry
         scenario.elasticsearch().poll {
             pollDelay(Duration.ofSeconds(12))
         }.deserialize(Random::class, true)
@@ -163,7 +164,7 @@ internal class ElasticsearchPollStepSpecificationImplTest {
 
     @Test
     internal fun `should flatten the source only`() {
-        val scenario = scenario("my-scenario") as StepSpecificationRegistry
+        val scenario = TestScenarioFactory.scenario("my-scenario") as StepSpecificationRegistry
         scenario.elasticsearch().poll {
             pollDelay(Duration.ofSeconds(12))
         }.flatten(Random::class)
@@ -177,7 +178,7 @@ internal class ElasticsearchPollStepSpecificationImplTest {
 
     @Test
     internal fun `should flatten the full document`() {
-        val scenario = scenario("my-scenario") as StepSpecificationRegistry
+        val scenario = TestScenarioFactory.scenario("my-scenario") as StepSpecificationRegistry
         scenario.elasticsearch().poll {
             pollDelay(Duration.ofSeconds(12))
         }.flatten(Random::class, true)

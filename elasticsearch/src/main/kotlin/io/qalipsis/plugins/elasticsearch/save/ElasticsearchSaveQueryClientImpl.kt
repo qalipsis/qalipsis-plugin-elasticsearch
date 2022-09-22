@@ -19,7 +19,6 @@ package io.qalipsis.plugins.elasticsearch.save
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
-import com.fasterxml.jackson.databind.node.TextNode
 import io.aerisconsulting.catadioptre.KTestable
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.MeterRegistry
@@ -33,6 +32,7 @@ import io.qalipsis.plugins.elasticsearch.Document
 import io.qalipsis.plugins.elasticsearch.ElasticsearchBulkResponse
 import io.qalipsis.plugins.elasticsearch.ElasticsearchException
 import io.qalipsis.plugins.elasticsearch.ElasticsearchSaveException
+import io.qalipsis.plugins.elasticsearch.ElasticsearchUtility.checkElasticsearchVersionIsGreaterThanSeven
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.apache.http.util.EntityUtils
@@ -102,12 +102,9 @@ internal class ElasticsearchSaveQueryClientImpl(
     }
 
     private fun init() {
-        log.debug { "Checking the version of ES" }
-
-        val versionTree =
-            jsonMapper.readTree(EntityUtils.toByteArray(client.performRequest(Request("GET", "/")).entity))
-        val version = (versionTree.get("version")?.get("number") as TextNode).textValue()
-        majorVersionIsSevenOrMore = version.substringBefore(".").toInt() >= 7
+        log.debug { "Checking the version of Elasticsearch" }
+        val version = checkElasticsearchVersionIsGreaterThanSeven(jsonMapper, client)
+        majorVersionIsSevenOrMore = version >= 7
         log.debug { "Using Elasticsearch $version" }
     }
 

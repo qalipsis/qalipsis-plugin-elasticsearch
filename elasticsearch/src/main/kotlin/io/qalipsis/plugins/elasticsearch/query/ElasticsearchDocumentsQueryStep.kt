@@ -81,6 +81,7 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
     override suspend fun start(context: StepStartStopContext) {
         log.debug { "Starting step $name for campaign ${context.campaignKey} of scenario ${context.scenarioName}" }
         restClient = restClientBuilder()
+        queryClient.init(restClient!!)
 
         initMonitoringMetrics(context)
 

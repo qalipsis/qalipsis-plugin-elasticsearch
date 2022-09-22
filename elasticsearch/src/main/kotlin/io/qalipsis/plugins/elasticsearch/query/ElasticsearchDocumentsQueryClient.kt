@@ -56,4 +56,9 @@ interface ElasticsearchDocumentsQueryClient<T> {
      * Cancels all the running requests.
      */
     fun cancelAll()
+
+    /**
+     * Checks the version of the rest client.
+     */
+    fun init(restClient: RestClient)
 }

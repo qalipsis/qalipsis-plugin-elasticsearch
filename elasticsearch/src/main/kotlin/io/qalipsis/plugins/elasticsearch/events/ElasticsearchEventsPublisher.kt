@@ -134,7 +134,7 @@ internal class ElasticsearchEventsPublisher(
      *
      */
     private fun initializeTemplate() {
-        log.debug { "Checking the version of ES" }
+        log.debug { "Checking the version of Elasticsearch" }
         val versionTree =
             jsonMapper.readTree(EntityUtils.toByteArray(restClient.performRequest(Request("GET", "/")).entity))
         val version = (versionTree.get("version")?.get("number") as TextNode).textValue()

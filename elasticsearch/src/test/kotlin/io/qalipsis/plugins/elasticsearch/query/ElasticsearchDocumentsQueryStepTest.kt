@@ -193,6 +193,7 @@ internal class ElasticsearchDocumentsQueryStepTest {
         }
 
         coVerifyOnce {
+            queryClient.init(restClient)
             queryClient.execute(
                 refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-query"),
                 eq(mapOf("param-1" to "value-1")),
@@ -281,6 +282,7 @@ internal class ElasticsearchDocumentsQueryStepTest {
         }
 
         coVerifyOnce {
+            queryClient.init(restClient)
             queryClient.execute(
                 refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-query"),
                 eq(mapOf("param-1" to "value-1", "scroll" to "the scroll duration")),
@@ -465,6 +467,7 @@ internal class ElasticsearchDocumentsQueryStepTest {
         }
 
         coVerifyOrder {
+            queryClient.init(restClient)
             queryClient.execute(
                 refEq(restClient), eq(listOf("index-1", "index-2")), eq("the-query"),
                 eq(mapOf("param-1" to "value-1")),

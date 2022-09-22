@@ -25,6 +25,7 @@ import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.plugins.elasticsearch.AbstractElasticsearchIntegrationTest
 import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_6_IMAGE
 import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_7_IMAGE
+import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_8_IMAGE
 import io.qalipsis.plugins.elasticsearch.ElasticsearchDocument
 import io.qalipsis.plugins.elasticsearch.ElasticsearchException
 import io.qalipsis.plugins.elasticsearch.query.model.ElasticsearchDocumentsQueryMetrics
@@ -95,8 +96,8 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
                 .forEach {
                     val version = it.first
                     val client = it.second
-
-                    createIndex(client, "events", readResource("events-mapping-$version.json"))
+                    val versionNumber = if (version >= 7) "7+" else "6"
+                    createIndex(client, "events", readResource("events-mapping-$versionNumber.json"))
                     bulk(client, "events", records.map { DocumentWithId(it.id, it.json) }, version < 7)
                 }
 
@@ -309,6 +310,8 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
         val record2 = records[11]
         val record3 = records[15]
 
+        queryClient.init(client)
+
         // when
         val results = queryClient.execute(
             client,
@@ -415,13 +418,26 @@ internal class ElasticsearchDocumentsQueryClientImplIntegrationTest : AbstractEl
                 withEnv("action.destructive_requires_name", "false")
             }
 
+        @Container
+        @JvmStatic
+        private val es8 =
+            ElasticsearchContainer(DockerImageName.parse(ELASTICSEARCH_8_IMAGE)).apply {
+                withCreateContainerCmdModifier { cmd ->
+                    cmd.hostConfig!!.withMemory(512 * 1024.0.pow(2).toLong()).withCpuCount(2)
+                }
+                withEnv("ES_JAVA_OPTS", "-Xms256m -Xmx256m")
+                withEnv("action.destructive_requires_name", "false")
+                withEnv("xpack.security.enabled", "false")
+            }
+
         @JvmStatic
         private val clients = AtomicReference<Collection<RestClient>>()
 
         @JvmStatic
-        fun containers() = Stream.of(
+        fun containers(): Stream<Arguments> = Stream.of(
             Arguments.of(ContainerVersionAndPort(6, es6.getMappedPort(9200))),
-            Arguments.of(ContainerVersionAndPort(7, es7.getMappedPort(9200)))
+            Arguments.of(ContainerVersionAndPort(7, es7.getMappedPort(9200))),
+            Arguments.of(ContainerVersionAndPort(8, es8.getMappedPort(9200)))
         )
 
         @AfterAll

@@ -27,6 +27,7 @@ import io.qalipsis.api.logging.LoggerHelper.logger
 import io.qalipsis.api.sync.ImmutableSlot
 import io.qalipsis.plugins.elasticsearch.ElasticsearchDocument
 import io.qalipsis.plugins.elasticsearch.ElasticsearchException
+import io.qalipsis.plugins.elasticsearch.ElasticsearchUtility.checkElasticsearchVersionIsGreaterThanSeven
 import io.qalipsis.plugins.elasticsearch.query.model.ElasticsearchDocumentsQueryMetrics
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -67,6 +68,23 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
 
     private val eventPrefix = "elasticsearch.query"
 
+    private var majorVersionIsSevenOrMore = false
+
+    private val pattern = "\"_type\"\\s*:\\s*\"\\w+\"\\s*,".toRegex()
+
+    private val typeConversion =
+        { query: String -> if (majorVersionIsSevenOrMore && query.contains(pattern)) query.replace(pattern, "") else query }
+
+    /**
+     * Checks the version of the restClient
+     */
+    override fun init(restClient: RestClient) {
+        log.debug { "Checking the version of Elasticsearch" }
+        val version = checkElasticsearchVersionIsGreaterThanSeven(jsonMapper, restClient)
+        majorVersionIsSevenOrMore = version >= 7
+        log.debug { "Using Elasticsearch $version" }
+    }
+
     /**
      * Executes a search and returns the list of results. If an exception occurs while executing, it is thrown.
      */
@@ -86,7 +104,7 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
 
         val request = Request("GET", "$target/$endpoint")
         request.addParameters(parameters)
-        request.setJsonEntity(query)
+        request.setJsonEntity(typeConversion(query))
 
         val result = withContext(ioCoroutineContext) {
             executeDocumentFetchingRequest(
@@ -97,7 +115,7 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
                 eventTags
             )
         }
-        if(result.failure != null) {
+        if (result.failure != null) {
             throw result.failure
         }
         return result
@@ -194,7 +212,8 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
                             error(
                                 name = "${eventPrefix}.failure.records",
                                 value = e.message,
-                                tags = eventTags)
+                                tags = eventTags
+                            )
                         }
                         resultsSlot.set(SearchResult(failure = e))
                     }
@@ -287,7 +306,11 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
         private val log = logger()
     }
 
-    private fun extractAndLogError(e: Exception, eventsLogger: EventsLogger?, eventTags: Map<String, String>?): ElasticsearchException {
+    private fun extractAndLogError(
+        e: Exception,
+        eventsLogger: EventsLogger?,
+        eventTags: Map<String, String>?
+    ): ElasticsearchException {
         val res = "{\"error" + e.message?.split("error")?.get(1)
         val errorBody = res.let {
             jsonMapper.readValue(it, object : TypeReference<Map<String?, Any?>?>() {})

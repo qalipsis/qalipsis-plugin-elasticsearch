@@ -109,9 +109,6 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
     @RelaxedMockK
     protected lateinit var savedBytesCounter: Counter
 
-    @RelaxedMockK
-    protected lateinit var failureBytesCounter: Counter
-
     protected val jsonMapper = JsonMapper().also {
         it.registerModule(JavaTimeModule())
         it.registerModule(kotlinModule { })
@@ -171,7 +168,7 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
                 prop("savedDocuments").isEqualTo(2)
                 prop("failedDocuments").isEqualTo(0)
                 prop("timeToResponse").isNotNull().isInstanceOf(Duration::class.java)
-                typedProp<Long>("bytesToSave").isNotNull().isBetween(463L, 464L)
+                typedProp<Long>("bytesToSave").isNotNull().isBetween(433L, 464L)
                 prop("documentsToSave").isEqualTo(2)
             }
             prop("responseBody").isNotNull().isInstanceOf(ElasticsearchBulkResponse::class.java).all {
@@ -197,7 +194,7 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
             documentsCount.increment(2.0)
             timeToResponseTimer.record(more(0L), TimeUnit.NANOSECONDS)
             successCounter.increment(2.0)
-            savedBytesCounter.increment(withArg { assertThat(it).isBetween(463.0, 464.0) })
+            savedBytesCounter.increment(withArg { assertThat(it).isBetween(433.0, 464.0) })
         }
         confirmVerified(documentsCount, timeToResponseTimer, successCounter, savedBytesCounter)
     }

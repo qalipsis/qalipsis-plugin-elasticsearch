@@ -32,6 +32,7 @@ import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.plugins.elasticsearch.AbstractElasticsearchIntegrationTest
 import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_6_IMAGE
 import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_7_IMAGE
+import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_8_IMAGE
 import io.qalipsis.plugins.elasticsearch.ElasticsearchException
 import io.qalipsis.test.coroutines.TestDispatcherProvider
 import io.qalipsis.test.io.readResource
@@ -262,7 +263,8 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
         index: String
     ) {
         val client = RestClient.builder(HttpHost("localhost", port, "http")).build()
-        createIndex(client, index, readResource("events-mapping-$version.json"))
+        val versionNumber = if (version >= 7) "7+" else "6"
+        createIndex(client, index, readResource("events-mapping-$versionNumber.json"))
 
         // when
         // Executes a first poll to verify that no empty set is provided.
@@ -344,12 +346,25 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
                 withEnv("action.destructive_requires_name", "false")
             }
 
+        @Container
+        @JvmStatic
+        private val es8 =
+            ElasticsearchContainer(DockerImageName.parse(ELASTICSEARCH_8_IMAGE)).apply {
+                withCreateContainerCmdModifier { cmd ->
+                    cmd.hostConfig!!.withMemory(512 * 1024.0.pow(2).toLong()).withCpuCount(2)
+                }
+                withEnv("ES_JAVA_OPTS", "-Xms256m -Xmx256m")
+                withEnv("action.destructive_requires_name", "false")
+                withEnv("xpack.security.enabled", "false")
+            }
+
         private const val POLL_TIMEOUT = 1000L
 
         @JvmStatic
         fun containers() = Stream.of(
             Arguments.of(ContainerVersionAndPort(6, es6.getMappedPort(9200))),
-            Arguments.of(ContainerVersionAndPort(7, es7.getMappedPort(9200)))
+            Arguments.of(ContainerVersionAndPort(7, es7.getMappedPort(9200))),
+            Arguments.of(ContainerVersionAndPort(8, es8.getMappedPort(9200)))
         )
     }
 }

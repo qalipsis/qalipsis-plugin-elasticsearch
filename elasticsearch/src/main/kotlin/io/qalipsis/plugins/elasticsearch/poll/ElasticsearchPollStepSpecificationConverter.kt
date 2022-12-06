@@ -22,11 +22,11 @@ import com.fasterxml.jackson.datatype.jdk8.Jdk8Module
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import io.aerisconsulting.catadioptre.KTestable
-import io.micrometer.core.instrument.MeterRegistry
 import io.micronaut.jackson.modules.BeanIntrospectionModule
 import io.qalipsis.api.Executors
 import io.qalipsis.api.annotations.StepConverter
 import io.qalipsis.api.events.EventsLogger
+import io.qalipsis.api.meters.CampaignMeterRegistry
 import io.qalipsis.api.steps.StepCreationContext
 import io.qalipsis.api.steps.StepSpecification
 import io.qalipsis.api.steps.StepSpecificationConverter
@@ -50,7 +50,7 @@ import kotlin.coroutines.CoroutineContext
 internal class ElasticsearchPollStepSpecificationConverter(
     @Named(Executors.IO_EXECUTOR_NAME) private val ioCoroutineScope: CoroutineScope,
     @Named(Executors.IO_EXECUTOR_NAME) private val ioCoroutineContext: CoroutineContext,
-    private val meterRegistry: MeterRegistry,
+    private val meterRegistry: CampaignMeterRegistry,
     private val eventsLogger: EventsLogger
 ) : StepSpecificationConverter<ElasticsearchPollStepSpecificationImpl> {
 

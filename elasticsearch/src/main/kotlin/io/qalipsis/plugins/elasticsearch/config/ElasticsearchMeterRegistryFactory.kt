@@ -26,7 +26,10 @@ import io.micronaut.context.env.Environment
 import io.micronaut.core.naming.conventions.StringConvention
 import io.micronaut.core.util.StringUtils
 import io.qalipsis.api.config.MetersConfig
+import io.qalipsis.api.meters.MeterRegistryConfiguration
+import io.qalipsis.api.meters.MeterRegistryFactory
 import jakarta.inject.Singleton
+import java.time.Duration
 import java.util.Properties
 
 /**
@@ -39,21 +42,39 @@ import java.util.Properties
     Requires(property = MetersConfig.EXPORT_ENABLED, notEquals = StringUtils.FALSE),
     Requires(property = ElasticsearchMeterRegistryFactory.ELASTICSEARCH_ENABLED, notEquals = StringUtils.FALSE)
 )
-internal class ElasticsearchMeterRegistryFactory {
+internal class ElasticsearchMeterRegistryFactory(environment: Environment) : MeterRegistryFactory {
 
-    @Singleton
-    fun elasticsearchRegistry(environment: Environment): ElasticMeterRegistry {
-        val properties = Properties()
+    private val properties = Properties()
+
+    init {
         properties.putAll(environment.getProperties(MetersConfig.EXPORT_CONFIGURATION, StringConvention.RAW))
         properties.putAll(environment.getProperties(MetersConfig.EXPORT_CONFIGURATION, StringConvention.CAMEL_CASE))
+    }
 
-        return ElasticMeterRegistry(object : ElasticConfig {
-            override fun prefix() = "elasticsearch"
-            override fun get(key: String): String? {
-                return properties.getProperty(key)
-            }
+    @Singleton
+    fun elasticsearchRegistry(): ElasticMeterRegistry {
+        return ElasticMeterRegistry(
+            object : ElasticConfig {
+                override fun prefix() = "elasticsearch"
+                override fun get(key: String): String? {
+                    return properties.getProperty(key)
+                }
+            },
+            Clock.SYSTEM
+        )
+    }
 
-        }, Clock.SYSTEM)
+    override fun getRegistry(configuration: MeterRegistryConfiguration): ElasticMeterRegistry {
+        return ElasticMeterRegistry(
+            object : ElasticConfig {
+                override fun prefix() = "elasticsearch"
+                override fun step(): Duration = configuration.step ?: super.step()
+                override fun get(key: String): String? {
+                    return properties.getProperty(key)
+                }
+            },
+            Clock.SYSTEM
+        )
     }
 
     internal companion object {

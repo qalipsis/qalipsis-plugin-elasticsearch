@@ -18,19 +18,20 @@ package io.qalipsis.plugins.elasticsearch.poll
 
 import com.fasterxml.jackson.databind.json.JsonMapper
 import io.aerisconsulting.catadioptre.coInvokeInvisible
-import io.micrometer.core.instrument.MeterRegistry
 import io.mockk.clearMocks
 import io.mockk.coEvery
 import io.mockk.confirmVerified
 import io.mockk.spyk
 import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.api.logging.LoggerHelper.logger
+import io.qalipsis.api.meters.CampaignMeterRegistry
 import io.qalipsis.api.sync.SuspendedCountLatch
 import io.qalipsis.test.coroutines.TestDispatcherProvider
 import io.qalipsis.test.mockk.WithMockk
 import io.qalipsis.test.mockk.coVerifyNever
 import io.qalipsis.test.mockk.relaxedMockk
 import io.qalipsis.test.mockk.verifyOnce
+import java.time.Duration
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import org.elasticsearch.client.RestClient
@@ -38,7 +39,6 @@ import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.api.extension.RegisterExtension
-import java.time.Duration
 
 /**
  *
@@ -53,7 +53,7 @@ internal class ElasticsearchIterativeReaderTest {
 
     val elasticPollStatement: ElasticsearchPollStatement = relaxedMockk()
 
-    val meterRegistry: MeterRegistry = relaxedMockk()
+    val meterRegistry: CampaignMeterRegistry = relaxedMockk()
     val eventsLogger: EventsLogger = relaxedMockk()
 
     val restClient: RestClient = relaxedMockk()
@@ -250,11 +250,5 @@ internal class ElasticsearchIterativeReaderTest {
         // then
         countDownLatch2.await()
         verifyOnce { elasticPollStatement.reset() }
-    }
-
-    companion object {
-
-        @JvmStatic
-        private val log = logger()
     }
 }

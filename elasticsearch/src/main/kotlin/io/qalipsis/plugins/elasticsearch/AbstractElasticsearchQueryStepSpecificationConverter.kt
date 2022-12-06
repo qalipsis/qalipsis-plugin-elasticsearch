@@ -22,10 +22,10 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.KotlinModule
-import io.micrometer.core.instrument.MeterRegistry
 import io.micronaut.jackson.modules.BeanIntrospectionModule
 import io.qalipsis.api.context.StepContext
 import io.qalipsis.api.events.EventsLogger
+import io.qalipsis.api.meters.CampaignMeterRegistry
 import io.qalipsis.api.steps.StepCreationContext
 import io.qalipsis.api.steps.StepSpecificationConverter
 import io.qalipsis.plugins.elasticsearch.query.ElasticsearchDocumentsQueryClientImpl
@@ -42,7 +42,7 @@ import kotlin.reflect.KClass
  */
 internal abstract class AbstractElasticsearchQueryStepSpecificationConverter<S : AbstractElasticsearchQueryStepSpecification<*>>(
     private val ioCoroutineContext: CoroutineContext,
-    private val meterRegistry: MeterRegistry,
+    private val meterRegistry: CampaignMeterRegistry,
     private val eventsLogger: EventsLogger
 ) : StepSpecificationConverter<S> {
 

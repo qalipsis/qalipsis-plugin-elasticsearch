@@ -1,0 +1,12 @@
+meters:
+  export:
+    elasticsearch:
+      urls: http://localhost:9200
+      host: ${meters.export.elasticsearch.urls}
+      enabled: true
+      username: qalipsis-user
+      password: qalipsis_password
+      step: PT10S
+      index: qalipsis-meters
+      index-date-format: yyyy-MM-dd
+      auto-create-index: true

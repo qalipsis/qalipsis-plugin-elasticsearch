@@ -19,7 +19,6 @@ package io.qalipsis.plugins.elasticsearch.query
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.node.ObjectNode
 import io.micrometer.core.instrument.Counter
-import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Tags
 import io.micrometer.core.instrument.Timer
 import io.qalipsis.api.context.StepContext
@@ -28,6 +27,7 @@ import io.qalipsis.api.context.StepName
 import io.qalipsis.api.context.StepStartStopContext
 import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.api.logging.LoggerHelper.logger
+import io.qalipsis.api.meters.CampaignMeterRegistry
 import io.qalipsis.api.retry.RetryPolicy
 import io.qalipsis.api.steps.AbstractStep
 import io.qalipsis.plugins.elasticsearch.ElasticsearchDocument
@@ -54,7 +54,7 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
     private val queryParamsFactory: suspend (ctx: StepContext<*, *>, input: I) -> Map<String, String?>,
     private val queryFactory: suspend (ctx: StepContext<*, *>, input: I) -> ObjectNode,
     private val fetchAll: Boolean,
-    private val meterRegistry: MeterRegistry?,
+    private val meterRegistry: CampaignMeterRegistry?,
     private val eventsLogger: EventsLogger?
 ) : AbstractStep<I, Pair<I, SearchResult<T>>>(id, retryPolicy) {
 
@@ -92,12 +92,12 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
         meterTags = context.toMetersTags()
 
         meterRegistry?.apply {
-            receivedSuccessBytesCounter = meterRegistry.counter("${meterPrefix}-success-bytes", meterTags)
-            receivedFailureBytesCounter = meterRegistry.counter("${meterPrefix}-failure-bytes", meterTags)
-            timeToResponse = meterRegistry.timer("${meterPrefix}-ttr", meterTags)
-            successCounter = meterRegistry.counter("${meterPrefix}-success", meterTags)
-            failureCounter = meterRegistry.counter("${meterPrefix}-failure", meterTags)
-            documentsCounter = meterRegistry.counter("${meterPrefix}-documents", meterTags)
+            receivedSuccessBytesCounter = meterRegistry.counter("${meterPrefix}-success-bytes", meterTags!!)
+            receivedFailureBytesCounter = meterRegistry.counter("${meterPrefix}-failure-bytes", meterTags!!)
+            timeToResponse = meterRegistry.timer("${meterPrefix}-ttr", meterTags!!)
+            successCounter = meterRegistry.counter("${meterPrefix}-success", meterTags!!)
+            failureCounter = meterRegistry.counter("${meterPrefix}-failure", meterTags!!)
+            documentsCounter = meterRegistry.counter("${meterPrefix}-documents", meterTags!!)
             elasticsearchDocumentsQueryMetrics = ElasticsearchDocumentsQueryMetrics(
                 receivedSuccessBytesCounter!!,
                 receivedFailureBytesCounter!!,
@@ -122,12 +122,12 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
 
     private fun stopMonitoringMetrics() {
         meterRegistry?.apply {
-            remove(receivedSuccessBytesCounter)
-            remove(receivedFailureBytesCounter)
-            remove(timeToResponse)
-            remove(successCounter)
-            remove(failureCounter)
-            remove(documentsCounter)
+            receivedSuccessBytesCounter?.let { remove(it) }
+            receivedFailureBytesCounter?.let { remove(it) }
+            timeToResponse?.let { remove(it) }
+            successCounter?.let { remove(it) }
+            failureCounter?.let { remove(it) }
+            documentsCounter?.let { remove(it) }
             receivedSuccessBytesCounter = null
             receivedFailureBytesCounter = null
             timeToResponse = null

@@ -25,10 +25,10 @@ import assertk.assertions.isNotNull
 import assertk.assertions.prop
 import com.fasterxml.jackson.databind.node.ObjectNode
 import io.aerisconsulting.catadioptre.coInvokeInvisible
-import io.micrometer.core.instrument.MeterRegistry
 import io.mockk.impl.annotations.RelaxedMockK
 import io.qalipsis.api.context.StepStartStopContext
 import io.qalipsis.api.events.EventsLogger
+import io.qalipsis.api.meters.CampaignMeterRegistry
 import io.qalipsis.plugins.elasticsearch.AbstractElasticsearchIntegrationTest
 import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_6_IMAGE
 import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_7_IMAGE
@@ -76,7 +76,7 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
         readResourceLines("events-data.csv").map { it.split(",") }.map { Event(Instant.parse(it[0]), it[1], it[2]) }
 
     @RelaxedMockK
-    private lateinit var meterRegistry: MeterRegistry
+    private lateinit var meterRegistry: CampaignMeterRegistry
 
     @RelaxedMockK
     private lateinit var eventsLogger: EventsLogger

@@ -29,7 +29,6 @@ import com.fasterxml.jackson.datatype.jdk8.Jdk8Module
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.kotlinModule
 import io.micrometer.core.instrument.Counter
-import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Tags
 import io.micrometer.core.instrument.Timer
 import io.mockk.confirmVerified
@@ -38,6 +37,7 @@ import io.mockk.impl.annotations.RelaxedMockK
 import io.mockk.verify
 import io.qalipsis.api.context.StepStartStopContext
 import io.qalipsis.api.events.EventsLogger
+import io.qalipsis.api.meters.CampaignMeterRegistry
 import io.qalipsis.plugins.elasticsearch.Document
 import io.qalipsis.plugins.elasticsearch.ElasticsearchBulkResponse
 import io.qalipsis.plugins.elasticsearch.ElasticsearchException
@@ -54,7 +54,6 @@ import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.api.assertThrows
@@ -135,7 +134,7 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
     @Timeout(30)
     fun `should export data`() = testDispatcherProvider.run {
         val metersTags = relaxedMockk<Tags>()
-        val meterRegistry = relaxedMockk<MeterRegistry> {
+        val meterRegistry = relaxedMockk<CampaignMeterRegistry> {
             every { counter("elasticsearch-save-received-documents", refEq(metersTags)) } returns documentsCount
             every { timer("elasticsearch-save-time-to-response", refEq(metersTags)) } returns timeToResponseTimer
             every { counter("elasticsearch-save-successes", refEq(metersTags)) } returns successCounter
@@ -203,7 +202,7 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
     @Timeout(30)
     fun `should generate failure when some documents are invalid JSON`() = testDispatcherProvider.run {
         val metersTags = relaxedMockk<Tags>()
-        val meterRegistry = relaxedMockk<MeterRegistry> {
+        val meterRegistry = relaxedMockk<CampaignMeterRegistry> {
             every { counter("elasticsearch-save-received-documents", refEq(metersTags)) } returns documentsCount
             every { timer("elasticsearch-save-time-to-response", refEq(metersTags)) } returns timeToResponseTimer
             every { counter("elasticsearch-save-successes", refEq(metersTags)) } returns successCounter

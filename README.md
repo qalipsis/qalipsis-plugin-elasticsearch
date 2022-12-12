@@ -1,6 +1,6 @@
 # <a src="https://qalipsis.io"><img src="http://assets.qalipsis.io/qalipsis-logo.png" style="height:60px;width:60px;position:relative;top:18px;margin-right:20px;"/>QALIPSIS for Elasticsearch</a>
 
-![CI](https://github.com/qalipsis/qalipsis-plugin-elasticsearch/actions/workflows/gradle-master.yml/badge.svg)
+![CI](https://github.com/qalipsis/qalipsis-plugin-elasticsearch/actions/workflows/gradle-main.yml/badge.svg)
 
 ## Introduction
 

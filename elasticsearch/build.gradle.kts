@@ -37,11 +37,11 @@ allOpen {
 kotlin.sourceSets["test"].kotlin.srcDir("build/generated/source/kaptKotlin/catadioptre")
 kapt.useBuildCache = false
 
-val coreVersion: String by project
+val pluginPlatformVersion: String by project
 val elasticsearchVersion = "8.4.1"
 
 dependencies {
-    implementation(platform("io.qalipsis:plugin-platform:${coreVersion}"))
+    implementation(platform("io.qalipsis:plugin-platform:${pluginPlatformVersion}"))
     compileOnly("io.aeris-consulting:catadioptre-annotations")
 
     compileOnly("io.micronaut:micronaut-runtime")
@@ -53,7 +53,7 @@ dependencies {
     api("io.qalipsis:api-dsl")
     api("io.micronaut.micrometer:micronaut-micrometer-registry-elastic")
 
-    kapt(platform("io.qalipsis:plugin-platform:${coreVersion}"))
+    kapt(platform("io.qalipsis:plugin-platform:${pluginPlatformVersion}"))
     kapt("io.aeris-consulting:catadioptre-annotations")
     kapt("io.micronaut:micronaut-inject-java")
     kapt("io.micronaut:micronaut-validation")
@@ -62,7 +62,7 @@ dependencies {
     kapt("io.qalipsis:api-dsl")
     kapt("io.qalipsis:api-common")
 
-    testImplementation(platform("io.qalipsis:plugin-platform:${coreVersion}"))
+    testImplementation(platform("io.qalipsis:plugin-platform:${pluginPlatformVersion}"))
     testImplementation("io.aeris-consulting:catadioptre-kotlin")
     testImplementation("org.testcontainers:elasticsearch")
     testImplementation("io.micronaut.test:micronaut-test-junit5")
@@ -78,7 +78,7 @@ dependencies {
     testRuntimeOnly("io.qalipsis:factory")
 
 
-    kaptTest(platform("io.qalipsis:plugin-platform:${coreVersion}"))
+    kaptTest(platform("io.qalipsis:plugin-platform:${pluginPlatformVersion}"))
     kaptTest("io.micronaut:micronaut-inject-java")
     kaptTest("io.qalipsis:api-processors")
 }

@@ -274,7 +274,7 @@ internal class ElasticsearchSaveQueryClientImpl(
                 .onEach {
                     val error = it["error"]
                     eventsLogger?.error(
-                        "${eventPrefix}.failure.document",
+                        "${eventPrefix}.failure.documents",
                         "Index: ${it["_index"].asText()}, ID: ${it["_id"]} ${error["reason"]}",
                         tags = contextEventTags
                     )

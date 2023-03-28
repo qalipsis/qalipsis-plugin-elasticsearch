@@ -238,7 +238,7 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
         val totalBytes = response.entity.contentLength
         elasticsearchDocumentsQueryMetrics?.timeToResponse?.record(timeToResponse)
         elasticsearchDocumentsQueryMetrics?.receivedSuccessBytesCounter?.increment(totalBytes.toDouble())
-        eventsLogger?.info("${eventPrefix}.success.ttr", timeToResponse, tags = eventTags)
+        eventsLogger?.info("${eventPrefix}.success.time-to-response", timeToResponse, tags = eventTags)
         eventsLogger?.info("${eventPrefix}.success.received-bytes", totalBytes, tags = eventTags)
 
         val jsonResult = jsonMapper.readTree(EntityUtils.toString(response.entity))

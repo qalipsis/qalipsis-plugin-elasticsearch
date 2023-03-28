@@ -59,7 +59,6 @@ import kotlin.coroutines.CoroutineContext
  * @property index index or indices to search in, as expected for the path parameter
  * @property queryParams collection of key/value pairs for the query parameters
  * @property pollDelay duration between the end of a poll and the start of the next one
- * @property queryMetrics metrics for the monitoring
  * @property jsonMapper JSON mapper to interpret the results
  * @property resultsChannelFactory factory to create the channel containing the received results sets
  * @property running running state of the reader
@@ -127,7 +126,7 @@ internal class ElasticsearchIterativeReader(
         meterRegistry?.apply {
             receivedSuccessBytesCounter = meterRegistry.counter("${meterPrefix}-success-bytes", meterTags!!)
             receivedFailureBytesCounter = meterRegistry.counter("${meterPrefix}-failure-bytes", meterTags!!)
-            timeToResponse = meterRegistry.timer("${meterPrefix}-ttr", meterTags!!)
+            timeToResponse = meterRegistry.timer("${meterPrefix}-time-to-response", meterTags!!)
             successCounter = meterRegistry.counter("${meterPrefix}-success", meterTags!!)
             documentsCounter = meterRegistry.counter("${meterPrefix}-documents-success", meterTags!!)
             failureCounter = meterRegistry.counter("${meterPrefix}-failure", meterTags!!)

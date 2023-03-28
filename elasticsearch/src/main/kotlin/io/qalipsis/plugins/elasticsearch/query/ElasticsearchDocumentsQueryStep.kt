@@ -94,7 +94,7 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
         meterRegistry?.apply {
             receivedSuccessBytesCounter = meterRegistry.counter("${meterPrefix}-success-bytes", meterTags!!)
             receivedFailureBytesCounter = meterRegistry.counter("${meterPrefix}-failure-bytes", meterTags!!)
-            timeToResponse = meterRegistry.timer("${meterPrefix}-ttr", meterTags!!)
+            timeToResponse = meterRegistry.timer("${meterPrefix}-time-to-response", meterTags!!)
             successCounter = meterRegistry.counter("${meterPrefix}-success", meterTags!!)
             failureCounter = meterRegistry.counter("${meterPrefix}-failure", meterTags!!)
             documentsCounter = meterRegistry.counter("${meterPrefix}-documents", meterTags!!)

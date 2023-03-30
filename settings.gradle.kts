@@ -17,6 +17,8 @@
 rootProject.name = "qalipsis-plugins-elasticsearch"
 
 include(
-    "elasticsearch"
+    ":qalipsis-plugin-elasticsearch"
 )
+
+project(":qalipsis-plugin-elasticsearch").projectDir = File(rootDir, "elasticsearch")
 

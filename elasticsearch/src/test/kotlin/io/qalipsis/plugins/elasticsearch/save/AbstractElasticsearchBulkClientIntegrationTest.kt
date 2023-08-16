@@ -28,9 +28,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.kotlinModule
-import io.micrometer.core.instrument.Counter
-import io.micrometer.core.instrument.Tags
-import io.micrometer.core.instrument.Timer
 import io.mockk.confirmVerified
 import io.mockk.every
 import io.mockk.impl.annotations.RelaxedMockK
@@ -38,6 +35,9 @@ import io.mockk.verify
 import io.qalipsis.api.context.StepStartStopContext
 import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.api.meters.CampaignMeterRegistry
+import io.qalipsis.api.meters.Counter
+import io.qalipsis.api.meters.Meter
+import io.qalipsis.api.meters.Timer
 import io.qalipsis.plugins.elasticsearch.Document
 import io.qalipsis.plugins.elasticsearch.ElasticsearchBulkResponse
 import io.qalipsis.plugins.elasticsearch.ElasticsearchException
@@ -133,16 +133,22 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
     @Test
     @Timeout(30)
     fun `should export data`() = testDispatcherProvider.run {
-        val metersTags = relaxedMockk<Tags>()
+        val eventTags: Map<String, String> = emptyMap()
         val meterRegistry = relaxedMockk<CampaignMeterRegistry> {
-            every { counter("elasticsearch-save-received-documents", refEq(metersTags)) } returns documentsCount
-            every { timer("elasticsearch-save-time-to-response", refEq(metersTags)) } returns timeToResponseTimer
-            every { counter("elasticsearch-save-successes", refEq(metersTags)) } returns successCounter
-            every { counter("elasticsearch-save-failures", refEq(metersTags)) } returns failureCounter
-            every { counter("elasticsearch-save-success-bytes", refEq(metersTags)) } returns savedBytesCounter
+            every { counter("scenario-test", "step-test", "elasticsearch-save-received-documents", refEq(eventTags)) } returns documentsCount
+            every { documentsCount.report(any()) } returns documentsCount
+            every { timer("scenario-test", "step-test","elasticsearch-save-time-to-response", refEq(eventTags)) } returns timeToResponseTimer
+            every { counter("scenario-test", "step-test","elasticsearch-save-successes", refEq(eventTags)) } returns successCounter
+            every { successCounter.report(any()) } returns successCounter
+            every { counter("scenario-test", "step-test","elasticsearch-save-failures", refEq(eventTags)) } returns failureCounter
+            every { failureCounter.report(any()) } returns failureCounter
+            every { counter("scenario-test", "step-test","elasticsearch-save-success-bytes", refEq(eventTags)) } returns savedBytesCounter
+            every { savedBytesCounter.report(any()) } returns savedBytesCounter
         }
         val startStopContext = relaxedMockk<StepStartStopContext> {
-            every { toMetersTags() } returns metersTags
+            every { toEventTags() } returns eventTags
+            every { scenarioName } returns "scenario-test"
+            every { stepName } returns "step-test"
         }
 
         // given
@@ -192,8 +198,11 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
         verify {
             documentsCount.increment(2.0)
             timeToResponseTimer.record(more(0L), TimeUnit.NANOSECONDS)
+            documentsCount.report(any<Meter.ReportingConfiguration<Counter>.() -> Unit>())
+            successCounter.report(any<Meter.ReportingConfiguration<Counter>.() -> Unit>())
             successCounter.increment(2.0)
             savedBytesCounter.increment(withArg { assertThat(it).isBetween(433.0, 464.0) })
+            savedBytesCounter.report(any<Meter.ReportingConfiguration<Counter>.() -> Unit>())
         }
         confirmVerified(documentsCount, timeToResponseTimer, successCounter, savedBytesCounter)
     }
@@ -201,16 +210,22 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
     @Test
     @Timeout(30)
     fun `should generate failure when some documents are invalid JSON`() = testDispatcherProvider.run {
-        val metersTags = relaxedMockk<Tags>()
+        val eventTags: Map<String, String> = emptyMap()
         val meterRegistry = relaxedMockk<CampaignMeterRegistry> {
-            every { counter("elasticsearch-save-received-documents", refEq(metersTags)) } returns documentsCount
-            every { timer("elasticsearch-save-time-to-response", refEq(metersTags)) } returns timeToResponseTimer
-            every { counter("elasticsearch-save-successes", refEq(metersTags)) } returns successCounter
-            every { counter("elasticsearch-save-failures", refEq(metersTags)) } returns failureCounter
-            every { counter("elasticsearch-save-success-bytes", refEq(metersTags)) } returns savedBytesCounter
+            every { counter("scenario-test", "step-test", "elasticsearch-save-received-documents", refEq(eventTags)) } returns documentsCount
+            every { documentsCount.report(any()) } returns documentsCount
+            every { timer("scenario-test", "step-test","elasticsearch-save-time-to-response", refEq(eventTags)) } returns timeToResponseTimer
+            every { counter("scenario-test", "step-test","elasticsearch-save-successes", refEq(eventTags)) } returns successCounter
+            every { successCounter.report(any()) } returns successCounter
+            every { counter("scenario-test", "step-test","elasticsearch-save-failures", refEq(eventTags)) } returns failureCounter
+            every { failureCounter.report(any()) } returns failureCounter
+            every { counter("scenario-test", "step-test","elasticsearch-save-success-bytes", refEq(eventTags)) } returns savedBytesCounter
+            every { savedBytesCounter.report(any()) } returns savedBytesCounter
         }
         val startStopContext = relaxedMockk<StepStartStopContext> {
-            every { toMetersTags() } returns metersTags
+            every { toEventTags() } returns eventTags
+            every { scenarioName } returns "scenario-test"
+            every { stepName } returns "step-test"
         }
 
         // given
@@ -243,6 +258,10 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
             failureCounter.increment(2.0)
             timeToResponseTimer.record(more(0L), TimeUnit.NANOSECONDS)
             successCounter.increment(1.0)
+            documentsCount.report(any<Meter.ReportingConfiguration<Counter>.() -> Unit>())
+            savedBytesCounter.report(any<Meter.ReportingConfiguration<Counter>.() -> Unit>())
+            successCounter.report(any<Meter.ReportingConfiguration<Counter>.() -> Unit>())
+            failureCounter.report(any<Meter.ReportingConfiguration<Counter>.() -> Unit>())
         }
         confirmVerified(documentsCount, timeToResponseTimer, successCounter, failureCounter)
     }

@@ -28,7 +28,8 @@ data class ElasticsearchDocumentsQueryMetrics(
     val timeToResponse: Timer,
     val successCounter: Counter,
     val failureCounter: Counter,
-    val documentsCounter: Counter
+    val documentsCounter: Counter,
+    val recordsCounter: Counter
 )
 
 

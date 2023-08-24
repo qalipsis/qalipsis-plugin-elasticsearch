@@ -25,10 +25,12 @@ import assertk.assertions.isNotNull
 import assertk.assertions.prop
 import com.fasterxml.jackson.databind.node.ObjectNode
 import io.aerisconsulting.catadioptre.coInvokeInvisible
+import io.mockk.every
 import io.mockk.impl.annotations.RelaxedMockK
 import io.qalipsis.api.context.StepStartStopContext
 import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.api.meters.CampaignMeterRegistry
+import io.qalipsis.api.meters.Counter
 import io.qalipsis.plugins.elasticsearch.AbstractElasticsearchIntegrationTest
 import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_6_IMAGE
 import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_7_IMAGE
@@ -38,6 +40,7 @@ import io.qalipsis.test.coroutines.TestDispatcherProvider
 import io.qalipsis.test.io.readResource
 import io.qalipsis.test.io.readResourceLines
 import io.qalipsis.test.mockk.WithMockk
+import io.qalipsis.test.mockk.relaxedMockk
 import kotlinx.coroutines.channels.Channel
 import org.apache.http.HttpHost
 import org.elasticsearch.client.RestClient
@@ -84,6 +87,14 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
     @RelaxedMockK
     private lateinit var stepStartStopContext: StepStartStopContext
 
+    private val recordsByteCounter = relaxedMockk<Counter>()
+
+    private val receivedSuccessBytesCounter = relaxedMockk<Counter>()
+
+    private val successCounter = relaxedMockk<Counter>()
+
+    private val failureCounter = relaxedMockk<Counter>()
+
     /**
      * This tests imports all the data in the table in subsequent batches, but filter the values with a WHERE clause
      * in the query to remove the ones for Truck #1.
@@ -97,6 +108,18 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
             val firstBatch = records.subList(0, 11)
             val secondBatch = records.subList(11, 26)
             val thirdBatch = records.subList(26, 39)
+            val tags = emptyMap<String, String>()
+            every { stepStartStopContext.toEventTags() } returns tags
+            every { stepStartStopContext.scenarioName } returns "scenario-name"
+            every { stepStartStopContext.stepName } returns "step-name"
+            every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-byte-records", refEq(tags)) } returns recordsByteCounter
+            every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-success-bytes", refEq(tags)) } returns successCounter
+            every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-failure", refEq(tags)) } returns failureCounter
+            every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-success", refEq(tags)) } returns failureCounter
+            every { successCounter.report(any()) } returns successCounter
+            every { recordsByteCounter.report(any()) } returns recordsByteCounter
+            every { receivedSuccessBytesCounter.report(any()) } returns receivedSuccessBytesCounter
+            every { failureCounter.report(any()) } returns failureCounter
 
             val query = """
                 {
@@ -148,6 +171,18 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
             val firstBatch = records.subList(0, 11)
             val secondBatch = records.subList(11, 26)
             val thirdBatch = records.subList(26, 39)
+            val tags = emptyMap<String, String>()
+            every { stepStartStopContext.toEventTags() } returns tags
+            every { stepStartStopContext.scenarioName } returns "scenario-name"
+            every { stepStartStopContext.stepName } returns "step-name"
+            every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-byte-records", refEq(tags)) } returns recordsByteCounter
+            every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-success-bytes", refEq(tags)) } returns successCounter
+            every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-failure", refEq(tags)) } returns failureCounter
+            every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-success", refEq(tags)) } returns failureCounter
+            every { successCounter.report(any()) } returns successCounter
+            every { recordsByteCounter.report(any()) } returns recordsByteCounter
+            every { receivedSuccessBytesCounter.report(any()) } returns receivedSuccessBytesCounter
+            every { failureCounter.report(any()) } returns failureCounter
             val client = RestClient.builder(HttpHost("localhost", versionAndPort.port, "http")).build()
             val query = """
                 {
@@ -205,6 +240,18 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
             val firstBatch = records.subList(0, 11)
             val secondBatch = records.subList(11, 26)
             val thirdBatch = records.subList(26, 39)
+            val tags = emptyMap<String, String>()
+            every { stepStartStopContext.toEventTags() } returns tags
+            every { stepStartStopContext.scenarioName } returns "scenario-name"
+            every { stepStartStopContext.stepName } returns "step-name"
+            every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-byte-records", refEq(tags)) } returns recordsByteCounter
+            every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-success-bytes", refEq(tags)) } returns successCounter
+            every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-failure", refEq(tags)) } returns failureCounter
+            every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-success", refEq(tags)) } returns failureCounter
+            every { successCounter.report(any()) } returns successCounter
+            every { recordsByteCounter.report(any()) } returns recordsByteCounter
+            every { receivedSuccessBytesCounter.report(any()) } returns receivedSuccessBytesCounter
+            every { failureCounter.report(any()) } returns failureCounter
 
             val client = RestClient.builder(HttpHost("localhost", versionAndPort.port, "http")).build()
             val query = """ {
@@ -265,6 +312,10 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
         val client = RestClient.builder(HttpHost("localhost", port, "http")).build()
         val versionNumber = if (version >= 7) "7+" else "6"
         createIndex(client, index, readResource("events-mapping-$versionNumber.json"))
+        val tags = emptyMap<String, String>()
+        every { stepStartStopContext.toEventTags() } returns tags
+        every { stepStartStopContext.scenarioName } returns "scenario-name"
+        every { stepStartStopContext.stepName } returns "step-name"
 
         // when
         // Executes a first poll to verify that no empty set is provided.

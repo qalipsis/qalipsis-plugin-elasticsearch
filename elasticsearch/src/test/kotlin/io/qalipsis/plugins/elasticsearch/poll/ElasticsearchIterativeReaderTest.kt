@@ -21,9 +21,13 @@ import io.aerisconsulting.catadioptre.coInvokeInvisible
 import io.mockk.clearMocks
 import io.mockk.coEvery
 import io.mockk.confirmVerified
+import io.mockk.every
+import io.mockk.impl.annotations.RelaxedMockK
 import io.mockk.spyk
+import io.qalipsis.api.context.StepStartStopContext
 import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.api.meters.CampaignMeterRegistry
+import io.qalipsis.api.meters.Counter
 import io.qalipsis.api.sync.SuspendedCountLatch
 import io.qalipsis.test.coroutines.TestDispatcherProvider
 import io.qalipsis.test.mockk.WithMockk
@@ -53,6 +57,7 @@ internal class ElasticsearchIterativeReaderTest {
     val elasticPollStatement: ElasticsearchPollStatement = relaxedMockk()
 
     val meterRegistry: CampaignMeterRegistry = relaxedMockk()
+
     val eventsLogger: EventsLogger = relaxedMockk()
 
     val restClient: RestClient = relaxedMockk()
@@ -60,6 +65,17 @@ internal class ElasticsearchIterativeReaderTest {
     val restClientFactory: () -> RestClient = { restClient }
 
     val jsonMapper: JsonMapper = relaxedMockk { }
+
+    @RelaxedMockK
+    private lateinit var stepStartStopContext: StepStartStopContext
+
+    private val recordsByteCounter = relaxedMockk<Counter>()
+
+    private val receivedSuccessBytesCounter = relaxedMockk<Counter>()
+
+    private val successCounter = relaxedMockk<Counter>()
+
+    private val failureCounter = relaxedMockk<Counter>()
 
     @Test
     @Timeout(10)
@@ -93,6 +109,20 @@ internal class ElasticsearchIterativeReaderTest {
     internal fun `should have next when running and poll`() = testDispatcherProvider.run {
         // given
         val countDownLatch = SuspendedCountLatch(3, true)
+
+        val tags = emptyMap<String, String>()
+        every { stepStartStopContext.toEventTags() } returns tags
+        every { stepStartStopContext.scenarioName } returns "scenario-name"
+        every { stepStartStopContext.stepName } returns "step-name"
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-byte-records", refEq(tags)) } returns recordsByteCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-success-bytes", refEq(tags)) } returns successCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-failure", refEq(tags)) } returns failureCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-success", refEq(tags)) } returns failureCounter
+        every { successCounter.report(any()) } returns successCounter
+        every { recordsByteCounter.report(any()) } returns recordsByteCounter
+        every { receivedSuccessBytesCounter.report(any()) } returns receivedSuccessBytesCounter
+        every { failureCounter.report(any()) } returns failureCounter
+
         val reader = spyk(
             ElasticsearchIterativeReader(
                 this,
@@ -111,7 +141,7 @@ internal class ElasticsearchIterativeReaderTest {
         coEvery { reader.coInvokeInvisible<Unit>("poll", any<RestClient>()) } coAnswers { countDownLatch.decrement() }
 
         // when
-        reader.start(relaxedMockk())
+        reader.start(stepStartStopContext)
 
         // then
         Assertions.assertTrue(reader.hasNext())
@@ -125,6 +155,18 @@ internal class ElasticsearchIterativeReaderTest {
     internal fun `should keep on polling even after a failure`() = testDispatcherProvider.run {
         // given
         val countDownLatch = SuspendedCountLatch(3, true)
+        val tags = emptyMap<String, String>()
+        every { stepStartStopContext.toEventTags() } returns tags
+        every { stepStartStopContext.scenarioName } returns "scenario-name"
+        every { stepStartStopContext.stepName } returns "step-name"
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-byte-records", refEq(tags)) } returns recordsByteCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-success-bytes", refEq(tags)) } returns successCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-failure", refEq(tags)) } returns failureCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-success", refEq(tags)) } returns failureCounter
+        every { successCounter.report(any()) } returns successCounter
+        every { recordsByteCounter.report(any()) } returns recordsByteCounter
+        every { receivedSuccessBytesCounter.report(any()) } returns receivedSuccessBytesCounter
+        every { failureCounter.report(any()) } returns failureCounter
         val reader = spyk(
             ElasticsearchIterativeReader(
                 this,
@@ -146,7 +188,7 @@ internal class ElasticsearchIterativeReaderTest {
         }
 
         // when
-        reader.start(relaxedMockk())
+        reader.start(stepStartStopContext)
 
         // then
         countDownLatch.await()
@@ -160,6 +202,18 @@ internal class ElasticsearchIterativeReaderTest {
     internal fun `should be stoppable`() = testDispatcherProvider.run {
         // given
         val countDownLatch = SuspendedCountLatch(3, true)
+        val tags = emptyMap<String, String>()
+        every { stepStartStopContext.toEventTags() } returns tags
+        every { stepStartStopContext.scenarioName } returns "scenario-name"
+        every { stepStartStopContext.stepName } returns "step-name"
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-byte-records", refEq(tags)) } returns recordsByteCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-success-bytes", refEq(tags)) } returns successCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-failure", refEq(tags)) } returns failureCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-success", refEq(tags)) } returns failureCounter
+        every { successCounter.report(any()) } returns successCounter
+        every { recordsByteCounter.report(any()) } returns recordsByteCounter
+        every { receivedSuccessBytesCounter.report(any()) } returns receivedSuccessBytesCounter
+        every { failureCounter.report(any()) } returns failureCounter
         val reader = spyk(
             ElasticsearchIterativeReader(
                 this,
@@ -178,7 +232,7 @@ internal class ElasticsearchIterativeReaderTest {
         coEvery { reader.coInvokeInvisible<Unit>("poll", any<RestClient>()) } coAnswers { countDownLatch.decrement() }
 
         // when
-        reader.start(relaxedMockk())
+        reader.start(stepStartStopContext)
 
         // then
         countDownLatch.await()
@@ -186,7 +240,7 @@ internal class ElasticsearchIterativeReaderTest {
         clearMocks(reader, elasticPollStatement, answers = false)
 
         // when
-        reader.stop(relaxedMockk())
+        reader.stop(stepStartStopContext)
 
         // then
         verifyOnce { elasticPollStatement.reset() }
@@ -203,6 +257,18 @@ internal class ElasticsearchIterativeReaderTest {
         val countDownLatch1 = SuspendedCountLatch(3)
         // Count down for the second period of activity.
         val countDownLatch2 = SuspendedCountLatch(3, true)
+        val tags = emptyMap<String, String>()
+        every { stepStartStopContext.toEventTags() } returns tags
+        every { stepStartStopContext.scenarioName } returns "scenario-name"
+        every { stepStartStopContext.stepName } returns "step-name"
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-byte-records", refEq(tags)) } returns recordsByteCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-success-bytes", refEq(tags)) } returns successCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-failure", refEq(tags)) } returns failureCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-success", refEq(tags)) } returns failureCounter
+        every { successCounter.report(any()) } returns successCounter
+        every { recordsByteCounter.report(any()) } returns recordsByteCounter
+        every { receivedSuccessBytesCounter.report(any()) } returns receivedSuccessBytesCounter
+        every { failureCounter.report(any()) } returns failureCounter
         val reader = spyk(
             ElasticsearchIterativeReader(
                 this,
@@ -227,7 +293,7 @@ internal class ElasticsearchIterativeReaderTest {
         }
 
         // when
-        reader.start(relaxedMockk())
+        reader.start(stepStartStopContext)
 
         // then
         verifyOnce { elasticPollStatement.reset() }
@@ -235,7 +301,7 @@ internal class ElasticsearchIterativeReaderTest {
         clearMocks(reader, elasticPollStatement, answers = false)
 
         // when
-        reader.stop(relaxedMockk())
+        reader.stop(stepStartStopContext)
 
         // then
         verifyOnce { elasticPollStatement.reset() }
@@ -244,7 +310,7 @@ internal class ElasticsearchIterativeReaderTest {
         clearMocks(reader, elasticPollStatement, answers = false)
 
         // when
-        reader.start(relaxedMockk())
+        reader.start(stepStartStopContext)
 
         // then
         countDownLatch2.await()

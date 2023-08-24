@@ -39,6 +39,7 @@ import io.qalipsis.api.context.StepContext
 import io.qalipsis.api.context.StepStartStopContext
 import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.api.meters.CampaignMeterRegistry
+import io.qalipsis.api.meters.Counter
 import io.qalipsis.plugins.elasticsearch.ElasticsearchDocument
 import io.qalipsis.test.assertk.prop
 import io.qalipsis.test.coroutines.TestDispatcherProvider
@@ -93,6 +94,14 @@ internal class ElasticsearchDocumentsQueryStepTest {
     @RelaxedMockK
     private lateinit var eventsLogger: EventsLogger
 
+    private val recordsCounter = relaxedMockk<Counter>()
+
+    private val receivedSuccessBytesCounter = relaxedMockk<Counter>()
+
+    private val successCounter = relaxedMockk<Counter>()
+
+    private val failureCounter = relaxedMockk<Counter>()
+
     @Test
     @Timeout(2)
     internal fun `should create the rest client at start`() = testDispatcherProvider.runTest {
@@ -109,6 +118,18 @@ internal class ElasticsearchDocumentsQueryStepTest {
             meterRegistry,
             eventsLogger
         )
+        val tags = emptyMap<String, String>()
+        every { stepStartStopContext.toEventTags() } returns tags
+        every { stepStartStopContext.scenarioName } returns "scenario-name"
+        every { stepStartStopContext.stepName } returns "step-name"
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-query-records", refEq(tags)) } returns recordsCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-query-success-bytes", refEq(tags)) } returns successCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-query-failure", refEq(tags)) } returns failureCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-query-success", refEq(tags)) } returns failureCounter
+        every { successCounter.report(any()) } returns successCounter
+        every { recordsCounter.report(any()) } returns recordsCounter
+        every { receivedSuccessBytesCounter.report(any()) } returns receivedSuccessBytesCounter
+        every { failureCounter.report(any()) } returns failureCounter
 
         // when
         step.start(stepStartStopContext)
@@ -175,6 +196,18 @@ internal class ElasticsearchDocumentsQueryStepTest {
             totalResults = 100,
             results = results
         )
+        val tags = emptyMap<String, String>()
+        every { stepStartStopContext.toEventTags() } returns tags
+        every { stepStartStopContext.scenarioName } returns "scenario-name"
+        every { stepStartStopContext.stepName } returns "step-name"
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-query-records", refEq(tags)) } returns recordsCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-query-success-bytes", refEq(tags)) } returns successCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-query-failure", refEq(tags)) } returns failureCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-query-success", refEq(tags)) } returns failureCounter
+        every { successCounter.report(any()) } returns successCounter
+        every { recordsCounter.report(any()) } returns recordsCounter
+        every { receivedSuccessBytesCounter.report(any()) } returns receivedSuccessBytesCounter
+        every { failureCounter.report(any()) } returns failureCounter
 
         val step = ElasticsearchDocumentsQueryStep(
             "", null,
@@ -260,6 +293,19 @@ internal class ElasticsearchDocumentsQueryStepTest {
             totalResults = 100,
             results = results.subList(6, 10)
         )
+        val tags = emptyMap<String, String>()
+        every { stepStartStopContext.toEventTags() } returns tags
+        every { stepStartStopContext.scenarioName } returns "scenario-name"
+        every { stepStartStopContext.stepName } returns "step-name"
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-query-records", refEq(tags)) } returns recordsCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-query-success-bytes", refEq(tags)) } returns successCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-query-failure", refEq(tags)) } returns failureCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-query-success", refEq(tags)) } returns failureCounter
+        every { successCounter.report(any()) } returns successCounter
+        every { recordsCounter.report(any()) } returns recordsCounter
+        every { receivedSuccessBytesCounter.report(any()) } returns receivedSuccessBytesCounter
+        every { failureCounter.report(any()) } returns failureCounter
+
 
         val step = ElasticsearchDocumentsQueryStep(
             "", null,
@@ -444,6 +490,18 @@ internal class ElasticsearchDocumentsQueryStepTest {
             results = results.subList(6, 10),
             searchAfterTieBreaker = searchBreaker3
         )
+        val tags = emptyMap<String, String>()
+        every { stepStartStopContext.toEventTags() } returns tags
+        every { stepStartStopContext.scenarioName } returns "scenario-name"
+        every { stepStartStopContext.stepName } returns "step-name"
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-query-records", refEq(tags)) } returns recordsCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-query-success-bytes", refEq(tags)) } returns successCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-query-failure", refEq(tags)) } returns failureCounter
+        every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-query-success", refEq(tags)) } returns failureCounter
+        every { successCounter.report(any()) } returns successCounter
+        every { recordsCounter.report(any()) } returns recordsCounter
+        every { receivedSuccessBytesCounter.report(any()) } returns receivedSuccessBytesCounter
+        every { failureCounter.report(any()) } returns failureCounter
 
         val step = ElasticsearchDocumentsQueryStep(
             "", null,

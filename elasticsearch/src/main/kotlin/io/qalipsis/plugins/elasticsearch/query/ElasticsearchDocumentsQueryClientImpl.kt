@@ -167,6 +167,7 @@ internal class ElasticsearchDocumentsQueryClientImpl<T>(
         val resultsSlot = ImmutableSlot<SearchResult<T>>()
         val requestKey = keyCounter.getAndIncrement()
         val requestStart = System.nanoTime()
+        elasticsearchDocumentsQueryMetrics?.recordsCounter?.increment(1.0)
         runningRequests[requestKey] = restClient.performRequestAsync(request, object : ResponseListener {
             override fun onSuccess(response: Response) {
                 try {

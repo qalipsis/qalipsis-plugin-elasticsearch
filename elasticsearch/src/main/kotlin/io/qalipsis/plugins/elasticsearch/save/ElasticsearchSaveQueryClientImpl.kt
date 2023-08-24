@@ -20,13 +20,14 @@ import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
 import io.aerisconsulting.catadioptre.KTestable
-import io.micrometer.core.instrument.Counter
-import io.micrometer.core.instrument.Timer
 import io.qalipsis.api.context.StepStartStopContext
 import io.qalipsis.api.events.EventsLogger
 import io.qalipsis.api.lang.tryAndLog
 import io.qalipsis.api.logging.LoggerHelper.logger
 import io.qalipsis.api.meters.CampaignMeterRegistry
+import io.qalipsis.api.meters.Counter
+import io.qalipsis.api.meters.Timer
+import io.qalipsis.api.report.ReportMessageSeverity
 import io.qalipsis.api.sync.Slot
 import io.qalipsis.plugins.elasticsearch.Document
 import io.qalipsis.plugins.elasticsearch.ElasticsearchBulkResponse
@@ -91,13 +92,47 @@ internal class ElasticsearchSaveQueryClientImpl(
         client = clientBuilder()
         init()
         meterRegistry?.apply {
-            val meterTags = context.toMetersTags()
-            documentsCount = counter("$meterPrefix-received-documents", meterTags)
-            timeToResponseTimer = timer("$meterPrefix-time-to-response", meterTags)
-            successCounter = counter("$meterPrefix-successes", meterTags)
-            failureCounter = counter("$meterPrefix-failures", meterTags)
-            savedBytesCounter = counter("$meterPrefix-success-bytes", meterTags)
-            failureBytesCounter = counter("$meterPrefix-failure-bytes", meterTags)
+            val eventTags = context.toEventTags()
+            val scenarioName = context.scenarioName
+            val stepName = context.stepName
+            documentsCount = counter(scenarioName, stepName, "$meterPrefix-received-documents", eventTags).report {
+                display(
+                    format = "attempted req %,.0f",
+                    severity = ReportMessageSeverity.INFO,
+                    row = 0,
+                    column = 0,
+                    Counter::count
+                )
+            }
+            timeToResponseTimer = timer(scenarioName, stepName, "$meterPrefix-time-to-response", eventTags)
+            successCounter = counter(scenarioName, stepName, "$meterPrefix-successes", eventTags).report {
+                display(
+                    format = "\u2713 %,.0f successes",
+                    severity = ReportMessageSeverity.INFO,
+                    row = 0,
+                    column = 2,
+                    Counter::count
+                )
+            }
+            failureCounter = counter(scenarioName, stepName, "$meterPrefix-failures", eventTags).report {
+                display(
+                    format = "\u2716 %,.0f failures",
+                    severity = ReportMessageSeverity.ERROR,
+                    row = 0,
+                    column = 4,
+                    Counter::count
+                )
+            }
+            savedBytesCounter = counter(scenarioName, stepName, "$meterPrefix-success-bytes", eventTags).report {
+                display(
+                    format = "\u2713 %,.0f byte successes",
+                    severity = ReportMessageSeverity.INFO,
+                    row = 0,
+                    column = 3,
+                    Counter::count
+                )
+            }
+            failureBytesCounter = counter(scenarioName, stepName, "$meterPrefix-failure-bytes", eventTags)
         }
     }
 
@@ -358,12 +393,6 @@ internal class ElasticsearchSaveQueryClientImpl(
             requestCancellable?.cancel()
         }
         meterRegistry?.apply {
-            remove(documentsCount!!)
-            remove(timeToResponseTimer!!)
-            remove(successCounter!!)
-            remove(failureCounter!!)
-            remove(savedBytesCounter!!)
-            remove(failureBytesCounter!!)
             documentsCount = null
             timeToResponseTimer = null
             successCounter = null

@@ -109,7 +109,7 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
             val secondBatch = records.subList(11, 26)
             val thirdBatch = records.subList(26, 39)
             val tags = emptyMap<String, String>()
-            every { stepStartStopContext.toEventTags() } returns tags
+            every { stepStartStopContext.toMetersTags() } returns tags
             every { stepStartStopContext.scenarioName } returns "scenario-name"
             every { stepStartStopContext.stepName } returns "step-name"
             every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-byte-records", refEq(tags)) } returns recordsByteCounter
@@ -172,7 +172,7 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
             val secondBatch = records.subList(11, 26)
             val thirdBatch = records.subList(26, 39)
             val tags = emptyMap<String, String>()
-            every { stepStartStopContext.toEventTags() } returns tags
+            every { stepStartStopContext.toMetersTags() } returns tags
             every { stepStartStopContext.scenarioName } returns "scenario-name"
             every { stepStartStopContext.stepName } returns "step-name"
             every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-byte-records", refEq(tags)) } returns recordsByteCounter
@@ -241,7 +241,7 @@ internal class ElasticsearchIterativeReaderIntegrationTest : AbstractElasticsear
             val secondBatch = records.subList(11, 26)
             val thirdBatch = records.subList(26, 39)
             val tags = emptyMap<String, String>()
-            every { stepStartStopContext.toEventTags() } returns tags
+            every { stepStartStopContext.toMetersTags() } returns tags
             every { stepStartStopContext.scenarioName } returns "scenario-name"
             every { stepStartStopContext.stepName } returns "step-name"
             every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-byte-records", refEq(tags)) } returns recordsByteCounter

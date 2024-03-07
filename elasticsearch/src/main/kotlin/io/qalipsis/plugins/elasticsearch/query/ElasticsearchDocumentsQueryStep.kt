@@ -89,11 +89,12 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
     }
 
     private fun initMonitoringMetrics(context: StepStartStopContext) {
-        val eventTags = context.toEventTags()
+        val metersTags = context.toMetersTags()
         val scenarioName = context.scenarioName
         val stepName = context.stepName
         meterRegistry?.apply {
-            recordsCounter = meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-records", eventTags).report {
+            recordsCounter =
+                meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-records", metersTags).report {
                 display(
                     format = "attempted req %,.0f",
                     severity = ReportMessageSeverity.INFO,
@@ -102,7 +103,8 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
                     Counter::count
                 )
             }
-            receivedSuccessBytesCounter = meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-success-bytes", eventTags).report {
+            receivedSuccessBytesCounter =
+                meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-success-bytes", metersTags).report {
                 display(
                     format = "\u2713 %,.0f byte successes",
                     severity = ReportMessageSeverity.INFO,
@@ -111,9 +113,11 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
                     Counter::count
                 )
             }
-            receivedFailureBytesCounter = meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-failure-bytes", eventTags)
-            timeToResponse = meterRegistry.timer(scenarioName, stepName, "${meterPrefix}-time-to-response", eventTags)
-            successCounter = meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-success", eventTags).report {
+            receivedFailureBytesCounter =
+                meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-failure-bytes", metersTags)
+            timeToResponse = meterRegistry.timer(scenarioName, stepName, "${meterPrefix}-time-to-response", metersTags)
+            successCounter =
+                meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-success", metersTags).report {
                 display(
                     format = "\u2713 %,.0f successes",
                     severity = ReportMessageSeverity.INFO,
@@ -122,7 +126,8 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
                     Counter::count
                 )
             }
-            failureCounter = meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-failure", eventTags).report {
+            failureCounter =
+                meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-failure", metersTags).report {
                 display(
                     format = "\u2716 %,.0f failures",
                     severity = ReportMessageSeverity.ERROR,
@@ -131,7 +136,7 @@ internal class ElasticsearchDocumentsQueryStep<I, T>(
                     Counter::count
                 )
             }
-            documentsCounter = meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-documents", eventTags)
+            documentsCounter = meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-documents", metersTags)
             elasticsearchDocumentsQueryMetrics = ElasticsearchDocumentsQueryMetrics(
                 receivedSuccessBytesCounter!!,
                 receivedFailureBytesCounter!!,

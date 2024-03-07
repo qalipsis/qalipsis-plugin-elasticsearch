@@ -119,7 +119,7 @@ internal class ElasticsearchDocumentsQueryStepTest {
             eventsLogger
         )
         val tags = emptyMap<String, String>()
-        every { stepStartStopContext.toEventTags() } returns tags
+        every { stepStartStopContext.toMetersTags() } returns tags
         every { stepStartStopContext.scenarioName } returns "scenario-name"
         every { stepStartStopContext.stepName } returns "step-name"
         every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-query-records", refEq(tags)) } returns recordsCounter
@@ -197,7 +197,7 @@ internal class ElasticsearchDocumentsQueryStepTest {
             results = results
         )
         val tags = emptyMap<String, String>()
-        every { stepStartStopContext.toEventTags() } returns tags
+        every { stepStartStopContext.toMetersTags() } returns tags
         every { stepStartStopContext.scenarioName } returns "scenario-name"
         every { stepStartStopContext.stepName } returns "step-name"
         every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-query-records", refEq(tags)) } returns recordsCounter
@@ -294,7 +294,7 @@ internal class ElasticsearchDocumentsQueryStepTest {
             results = results.subList(6, 10)
         )
         val tags = emptyMap<String, String>()
-        every { stepStartStopContext.toEventTags() } returns tags
+        every { stepStartStopContext.toMetersTags() } returns tags
         every { stepStartStopContext.scenarioName } returns "scenario-name"
         every { stepStartStopContext.stepName } returns "step-name"
         every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-query-records", refEq(tags)) } returns recordsCounter
@@ -491,7 +491,7 @@ internal class ElasticsearchDocumentsQueryStepTest {
             searchAfterTieBreaker = searchBreaker3
         )
         val tags = emptyMap<String, String>()
-        every { stepStartStopContext.toEventTags() } returns tags
+        every { stepStartStopContext.toMetersTags() } returns tags
         every { stepStartStopContext.scenarioName } returns "scenario-name"
         every { stepStartStopContext.stepName } returns "step-name"
         every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-query-records", refEq(tags)) } returns recordsCounter

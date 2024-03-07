@@ -92,10 +92,10 @@ internal class ElasticsearchSaveQueryClientImpl(
         client = clientBuilder()
         init()
         meterRegistry?.apply {
-            val eventTags = context.toEventTags()
+            val metersTags = context.toMetersTags()
             val scenarioName = context.scenarioName
             val stepName = context.stepName
-            documentsCount = counter(scenarioName, stepName, "$meterPrefix-received-documents", eventTags).report {
+            documentsCount = counter(scenarioName, stepName, "$meterPrefix-received-documents", metersTags).report {
                 display(
                     format = "attempted req %,.0f",
                     severity = ReportMessageSeverity.INFO,
@@ -104,8 +104,8 @@ internal class ElasticsearchSaveQueryClientImpl(
                     Counter::count
                 )
             }
-            timeToResponseTimer = timer(scenarioName, stepName, "$meterPrefix-time-to-response", eventTags)
-            successCounter = counter(scenarioName, stepName, "$meterPrefix-successes", eventTags).report {
+            timeToResponseTimer = timer(scenarioName, stepName, "$meterPrefix-time-to-response", metersTags)
+            successCounter = counter(scenarioName, stepName, "$meterPrefix-successes", metersTags).report {
                 display(
                     format = "\u2713 %,.0f successes",
                     severity = ReportMessageSeverity.INFO,
@@ -114,7 +114,7 @@ internal class ElasticsearchSaveQueryClientImpl(
                     Counter::count
                 )
             }
-            failureCounter = counter(scenarioName, stepName, "$meterPrefix-failures", eventTags).report {
+            failureCounter = counter(scenarioName, stepName, "$meterPrefix-failures", metersTags).report {
                 display(
                     format = "\u2716 %,.0f failures",
                     severity = ReportMessageSeverity.ERROR,
@@ -123,7 +123,7 @@ internal class ElasticsearchSaveQueryClientImpl(
                     Counter::count
                 )
             }
-            savedBytesCounter = counter(scenarioName, stepName, "$meterPrefix-success-bytes", eventTags).report {
+            savedBytesCounter = counter(scenarioName, stepName, "$meterPrefix-success-bytes", metersTags).report {
                 display(
                     format = "\u2713 %,.0f byte successes",
                     severity = ReportMessageSeverity.INFO,
@@ -132,7 +132,7 @@ internal class ElasticsearchSaveQueryClientImpl(
                     Counter::count
                 )
             }
-            failureBytesCounter = counter(scenarioName, stepName, "$meterPrefix-failure-bytes", eventTags)
+            failureBytesCounter = counter(scenarioName, stepName, "$meterPrefix-failure-bytes", metersTags)
         }
     }
 

@@ -133,20 +133,55 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
     @Test
     @Timeout(30)
     fun `should export data`() = testDispatcherProvider.run {
-        val eventTags: Map<String, String> = emptyMap()
+        val metersTags: Map<String, String> = emptyMap()
         val meterRegistry = relaxedMockk<CampaignMeterRegistry> {
-            every { counter("scenario-test", "step-test", "elasticsearch-save-received-documents", refEq(eventTags)) } returns documentsCount
+            every {
+                counter(
+                    "scenario-test",
+                    "step-test",
+                    "elasticsearch-save-received-documents",
+                    refEq(metersTags)
+                )
+            } returns documentsCount
             every { documentsCount.report(any()) } returns documentsCount
-            every { timer("scenario-test", "step-test","elasticsearch-save-time-to-response", refEq(eventTags)) } returns timeToResponseTimer
-            every { counter("scenario-test", "step-test","elasticsearch-save-successes", refEq(eventTags)) } returns successCounter
+            every {
+                timer(
+                    "scenario-test",
+                    "step-test",
+                    "elasticsearch-save-time-to-response",
+                    refEq(metersTags)
+                )
+            } returns timeToResponseTimer
+            every {
+                counter(
+                    "scenario-test",
+                    "step-test",
+                    "elasticsearch-save-successes",
+                    refEq(metersTags)
+                )
+            } returns successCounter
             every { successCounter.report(any()) } returns successCounter
-            every { counter("scenario-test", "step-test","elasticsearch-save-failures", refEq(eventTags)) } returns failureCounter
+            every {
+                counter(
+                    "scenario-test",
+                    "step-test",
+                    "elasticsearch-save-failures",
+                    refEq(metersTags)
+                )
+            } returns failureCounter
             every { failureCounter.report(any()) } returns failureCounter
-            every { counter("scenario-test", "step-test","elasticsearch-save-success-bytes", refEq(eventTags)) } returns savedBytesCounter
+            every {
+                counter(
+                    "scenario-test",
+                    "step-test",
+                    "elasticsearch-save-success-bytes",
+                    refEq(metersTags)
+                )
+            } returns savedBytesCounter
             every { savedBytesCounter.report(any()) } returns savedBytesCounter
         }
         val startStopContext = relaxedMockk<StepStartStopContext> {
-            every { toEventTags() } returns eventTags
+            every { toMetersTags() } returns metersTags
             every { scenarioName } returns "scenario-test"
             every { stepName } returns "step-test"
         }
@@ -210,20 +245,55 @@ internal abstract class AbstractElasticsearchBulkClientIntegrationTest {
     @Test
     @Timeout(30)
     fun `should generate failure when some documents are invalid JSON`() = testDispatcherProvider.run {
-        val eventTags: Map<String, String> = emptyMap()
+        val metersTags: Map<String, String> = emptyMap()
         val meterRegistry = relaxedMockk<CampaignMeterRegistry> {
-            every { counter("scenario-test", "step-test", "elasticsearch-save-received-documents", refEq(eventTags)) } returns documentsCount
+            every {
+                counter(
+                    "scenario-test",
+                    "step-test",
+                    "elasticsearch-save-received-documents",
+                    refEq(metersTags)
+                )
+            } returns documentsCount
             every { documentsCount.report(any()) } returns documentsCount
-            every { timer("scenario-test", "step-test","elasticsearch-save-time-to-response", refEq(eventTags)) } returns timeToResponseTimer
-            every { counter("scenario-test", "step-test","elasticsearch-save-successes", refEq(eventTags)) } returns successCounter
+            every {
+                timer(
+                    "scenario-test",
+                    "step-test",
+                    "elasticsearch-save-time-to-response",
+                    refEq(metersTags)
+                )
+            } returns timeToResponseTimer
+            every {
+                counter(
+                    "scenario-test",
+                    "step-test",
+                    "elasticsearch-save-successes",
+                    refEq(metersTags)
+                )
+            } returns successCounter
             every { successCounter.report(any()) } returns successCounter
-            every { counter("scenario-test", "step-test","elasticsearch-save-failures", refEq(eventTags)) } returns failureCounter
+            every {
+                counter(
+                    "scenario-test",
+                    "step-test",
+                    "elasticsearch-save-failures",
+                    refEq(metersTags)
+                )
+            } returns failureCounter
             every { failureCounter.report(any()) } returns failureCounter
-            every { counter("scenario-test", "step-test","elasticsearch-save-success-bytes", refEq(eventTags)) } returns savedBytesCounter
+            every {
+                counter(
+                    "scenario-test",
+                    "step-test",
+                    "elasticsearch-save-success-bytes",
+                    refEq(metersTags)
+                )
+            } returns savedBytesCounter
             every { savedBytesCounter.report(any()) } returns savedBytesCounter
         }
         val startStopContext = relaxedMockk<StepStartStopContext> {
-            every { toEventTags() } returns eventTags
+            every { toMetersTags() } returns metersTags
             every { scenarioName } returns "scenario-test"
             every { stepName } returns "step-test"
         }

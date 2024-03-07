@@ -93,6 +93,8 @@ internal class ElasticsearchIterativeReader(
 
     private val meterPrefix: String = "elasticsearch-poll"
 
+    private var metersTags: Map<String, String>? = null
+
     private var eventTags: Map<String, String>? = null
 
     private var recordsByteCounter: Counter? = null
@@ -121,11 +123,13 @@ internal class ElasticsearchIterativeReader(
 
     private fun initMonitoringMetrics(context: StepStartStopContext) {
         eventTags = context.toEventTags()
+        metersTags = context.toMetersTags()
         val scenarioName = context.scenarioName
         val stepName = context.stepName
 
         meterRegistry?.apply {
-            recordsByteCounter = meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-byte-records", eventTags!!).report {
+            recordsByteCounter =
+                meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-byte-records", metersTags!!).report {
                 display(
                     format = "attempted req: %,.0f bytes",
                     severity = ReportMessageSeverity.INFO,
@@ -134,7 +138,8 @@ internal class ElasticsearchIterativeReader(
                     Counter::count
                 )
             }
-            receivedSuccessBytesCounter = meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-success-bytes", eventTags!!).report {
+            receivedSuccessBytesCounter =
+                meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-success-bytes", metersTags!!).report {
                 display(
                     format = "\u2713 %,.0f byte successes",
                     severity = ReportMessageSeverity.INFO,
@@ -143,9 +148,12 @@ internal class ElasticsearchIterativeReader(
                     Counter::count
                 )
             }
-            receivedFailureBytesCounter = meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-failure-bytes", eventTags!!)
-            timeToResponse = meterRegistry.timer(scenarioName, stepName, "${meterPrefix}-time-to-response", eventTags!!)
-            successCounter = meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-success", eventTags!!).report {
+            receivedFailureBytesCounter =
+                meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-failure-bytes", metersTags!!)
+            timeToResponse =
+                meterRegistry.timer(scenarioName, stepName, "${meterPrefix}-time-to-response", metersTags!!)
+            successCounter =
+                meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-success", metersTags!!).report {
                 display(
                     format = "\u2713 %,.0f successes",
                     severity = ReportMessageSeverity.INFO,
@@ -154,8 +162,10 @@ internal class ElasticsearchIterativeReader(
                     Counter::count
                 )
             }
-            documentsCounter = meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-documents-success", eventTags!!)
-            failureCounter = meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-failure", eventTags!!).report {
+            documentsCounter =
+                meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-documents-success", metersTags!!)
+            failureCounter =
+                meterRegistry.counter(scenarioName, stepName, "${meterPrefix}-failure", metersTags!!).report {
                 display(
                     format = "\u2716 %,.0f failures",
                     severity = ReportMessageSeverity.ERROR,
@@ -321,6 +331,8 @@ internal class ElasticsearchIterativeReader(
             documentsCounter = null
             recordsByteCounter = null
         }
+        eventTags = null
+        metersTags = null
     }
 
     override suspend fun hasNext(): Boolean {

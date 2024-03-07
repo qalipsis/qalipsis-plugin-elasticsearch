@@ -34,7 +34,6 @@ import io.qalipsis.test.mockk.WithMockk
 import io.qalipsis.test.mockk.coVerifyNever
 import io.qalipsis.test.mockk.relaxedMockk
 import io.qalipsis.test.mockk.verifyOnce
-import java.time.Duration
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import org.elasticsearch.client.RestClient
@@ -42,6 +41,7 @@ import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.api.extension.RegisterExtension
+import java.time.Duration
 
 /**
  *
@@ -111,7 +111,7 @@ internal class ElasticsearchIterativeReaderTest {
         val countDownLatch = SuspendedCountLatch(3, true)
 
         val tags = emptyMap<String, String>()
-        every { stepStartStopContext.toEventTags() } returns tags
+        every { stepStartStopContext.toMetersTags() } returns tags
         every { stepStartStopContext.scenarioName } returns "scenario-name"
         every { stepStartStopContext.stepName } returns "step-name"
         every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-byte-records", refEq(tags)) } returns recordsByteCounter
@@ -156,7 +156,7 @@ internal class ElasticsearchIterativeReaderTest {
         // given
         val countDownLatch = SuspendedCountLatch(3, true)
         val tags = emptyMap<String, String>()
-        every { stepStartStopContext.toEventTags() } returns tags
+        every { stepStartStopContext.toMetersTags() } returns tags
         every { stepStartStopContext.scenarioName } returns "scenario-name"
         every { stepStartStopContext.stepName } returns "step-name"
         every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-byte-records", refEq(tags)) } returns recordsByteCounter
@@ -203,7 +203,7 @@ internal class ElasticsearchIterativeReaderTest {
         // given
         val countDownLatch = SuspendedCountLatch(3, true)
         val tags = emptyMap<String, String>()
-        every { stepStartStopContext.toEventTags() } returns tags
+        every { stepStartStopContext.toMetersTags() } returns tags
         every { stepStartStopContext.scenarioName } returns "scenario-name"
         every { stepStartStopContext.stepName } returns "step-name"
         every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-byte-records", refEq(tags)) } returns recordsByteCounter
@@ -258,7 +258,7 @@ internal class ElasticsearchIterativeReaderTest {
         // Count down for the second period of activity.
         val countDownLatch2 = SuspendedCountLatch(3, true)
         val tags = emptyMap<String, String>()
-        every { stepStartStopContext.toEventTags() } returns tags
+        every { stepStartStopContext.toMetersTags() } returns tags
         every { stepStartStopContext.scenarioName } returns "scenario-name"
         every { stepStartStopContext.stepName } returns "step-name"
         every { meterRegistry.counter("scenario-name", "step-name", "elasticsearch-poll-byte-records", refEq(tags)) } returns recordsByteCounter

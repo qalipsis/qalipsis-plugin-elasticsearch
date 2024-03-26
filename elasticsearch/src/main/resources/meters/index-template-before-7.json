@@ -1,0 +1,68 @@
+{
+  "settings": {
+    "index": {
+      "refresh_interval": "5s",
+      "codec": "best_compression",
+      "auto_expand_replicas": "0-2",
+      "max_result_window": 10000,
+      "max_inner_result_window": 100
+    },
+    "analysis": {
+      "normalizer": {
+        "lowercase_normalizer": {
+          "type": "custom",
+          "char_filter": [],
+          "filter": [
+            "lowercase"
+          ]
+        }
+      }
+    }
+  },
+  "aliases": {},
+  "mappings": {
+    "_doc": {
+      "_source": {
+        "enabled": false
+      },
+      "properties": {
+        "@timestamp": {
+          "type": "date",
+          "format": "epoch_millis",
+          "store": true
+        },
+        "name": {
+          "type": "keyword",
+          "normalizer": "lowercase_normalizer",
+          "store": true
+        },
+        "type": {
+          "type": "keyword",
+          "normalizer": "lowercase_normalizer",
+          "store": true
+        },
+        "metrics": {
+          "type": "nested",
+          "dynamic": true,
+          "properties": {
+            "statistic": { "type": "keyword" },
+            "value": { "type": "float" }
+          }
+        }
+      },
+      "dynamic_templates": [
+        {
+          "tags": {
+            "match_mapping_type": "string",
+            "path_match": "tags.*",
+            "mapping": {
+              "type": "keyword",
+              "normalizer": "lowercase_normalizer",
+              "store": true
+            }
+          }
+        }
+      ]
+    }
+  }
+}

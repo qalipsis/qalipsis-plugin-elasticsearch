@@ -1,5 +1,6 @@
 events:
   export:
+    enabled: true
     elasticsearch:
       enabled: true
       min-level: trace
@@ -20,3 +21,28 @@ events:
       shards: 3
       replicas: 1
       proxy: http://localhost:4000
+
+meters:
+  export:
+    enabled: true
+    elasticsearch:
+      enabled: true
+      min-level: trace
+      urls:
+        - http://localhost:9205
+        - http://localhost:9203
+      path-prefix: /es/
+      index-prefix: my-qali-meters
+      refresh-interval: 1m
+      store-source: true
+      index-date-pattern: yyyy-MM
+      duration-as-nano: true
+      linger-period: 30s
+      batch-size: 100
+      publishers: 1
+      username: the-user
+      password: the-password
+      shards: 7
+      replicas: 2
+      proxy: http://localhost:4000
+      prefix: elastic

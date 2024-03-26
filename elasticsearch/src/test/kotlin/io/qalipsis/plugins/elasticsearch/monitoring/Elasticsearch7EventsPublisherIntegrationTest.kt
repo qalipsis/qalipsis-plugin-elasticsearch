@@ -14,15 +14,16 @@
  * permissions and limitations under the License.
  */
 
-package io.qalipsis.plugins.elasticsearch.events
+package io.qalipsis.plugins.elasticsearch.monitoring
 
-import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_8_IMAGE
+import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_7_IMAGE
+import io.qalipsis.plugins.elasticsearch.monitoring.events.AbstractElasticsearchEventsPublisherIntegrationTest
 import org.testcontainers.elasticsearch.ElasticsearchContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.utility.DockerImageName
 import java.time.format.DateTimeFormatter
 
-internal class Elasticsearch8EventsPublisherIntegrationTest : AbstractElasticsearchEventsPublisherIntegrationTest() {
+internal class Elasticsearch7EventsPublisherIntegrationTest : AbstractElasticsearchEventsPublisherIntegrationTest() {
 
     override val container: ElasticsearchContainer = CONTAINER
 
@@ -35,12 +36,11 @@ internal class Elasticsearch8EventsPublisherIntegrationTest : AbstractElasticsea
         @Container
         @JvmStatic
         private val CONTAINER = ElasticsearchContainer(
-            DockerImageName.parse(ELASTICSEARCH_8_IMAGE)
+            DockerImageName.parse(ELASTICSEARCH_7_IMAGE)
         ).withCreateContainerCmdModifier {
             it.hostConfig!!.withMemory((512 * 1e20).toLong()).withCpuCount(2)
         }
             .withEnv("ES_JAVA_OPTS", "-Xms256m -Xmx256m")
             .withEnv("action.destructive_requires_name", "false")
-            .withEnv("xpack.security.enabled", "false")
     }
 }

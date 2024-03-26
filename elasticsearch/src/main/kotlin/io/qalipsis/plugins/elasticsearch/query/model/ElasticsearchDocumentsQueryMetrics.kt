@@ -16,8 +16,8 @@
 
 package io.qalipsis.plugins.elasticsearch.query.model
 
-import io.micrometer.core.instrument.Counter
-import io.micrometer.core.instrument.Timer
+import io.qalipsis.api.meters.Counter
+import io.qalipsis.api.meters.Timer
 
 /**
  * @author rklymenko

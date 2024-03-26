@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 AERIS IT Solutions GmbH
+ * Copyright 2024 AERIS IT Solutions GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,20 +17,19 @@
 package io.qalipsis.plugins.elasticsearch.config
 
 import assertk.assertThat
-import assertk.assertions.hasSize
 import assertk.assertions.isEmpty
 import assertk.assertions.isNotEmpty
-import io.micrometer.core.instrument.MeterRegistry
-import io.micrometer.elastic.ElasticMeterRegistry
 import io.micronaut.context.ApplicationContext
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest
 import io.micronaut.test.support.TestPropertyProvider
+import io.qalipsis.api.meters.CampaignMeterRegistry
+import io.qalipsis.plugins.elasticsearch.monitoring.meters.ElasticsearchMeasurementPublisher
 import jakarta.inject.Inject
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 
-internal class ElasticsearchMeterRegistryFactoryIntegrationTest {
+internal class ElasticsearchMeasurementPublisherFactoryIntegrationTest {
 
     @Nested
     @MicronautTest(startApplication = false, environments = ["elasticsearch"])
@@ -41,9 +40,9 @@ internal class ElasticsearchMeterRegistryFactoryIntegrationTest {
 
         @Test
         @Timeout(10)
-        internal fun `should disables the default ES meter registry`() {
-            assertThat(applicationContext.getBeansOfType(MeterRegistry::class.java)).isNotEmpty()
-            assertThat(applicationContext.getBeansOfType(ElasticMeterRegistry::class.java)).isEmpty()
+        internal fun `should disable the default ES measurement publisher factory`() {
+            assertThat(applicationContext.getBeansOfType(CampaignMeterRegistry::class.java)).isNotEmpty()
+            assertThat(applicationContext.getBeansOfType(ElasticsearchMeasurementPublisherFactory::class.java)).isEmpty()
         }
     }
 
@@ -63,9 +62,9 @@ internal class ElasticsearchMeterRegistryFactoryIntegrationTest {
 
         @Test
         @Timeout(10)
-        internal fun `should start without ES meter registry`() {
-            assertThat(applicationContext.getBeansOfType(MeterRegistry::class.java)).isNotEmpty()
-            assertThat(applicationContext.getBeansOfType(ElasticMeterRegistry::class.java)).isEmpty()
+        internal fun `should not start without ES measurement publisher factory`() {
+            assertThat(applicationContext.getBeansOfType(CampaignMeterRegistry::class.java)).isNotEmpty()
+            assertThat(applicationContext.getBeansOfType(ElasticsearchMeasurementPublisherFactory::class.java)).isEmpty()
         }
     }
 
@@ -85,9 +84,9 @@ internal class ElasticsearchMeterRegistryFactoryIntegrationTest {
 
         @Test
         @Timeout(10)
-        internal fun `should start without ES meter registry`() {
-            assertThat(applicationContext.getBeansOfType(MeterRegistry::class.java)).isNotEmpty()
-            assertThat(applicationContext.getBeansOfType(ElasticMeterRegistry::class.java)).isEmpty()
+        internal fun `should not start without ES measurement publisher factory`() {
+            assertThat(applicationContext.getBeansOfType(CampaignMeterRegistry::class.java)).isNotEmpty()
+            assertThat(applicationContext.getBeansOfType(ElasticsearchMeasurementPublisher::class.java)).isEmpty()
         }
     }
 
@@ -107,9 +106,9 @@ internal class ElasticsearchMeterRegistryFactoryIntegrationTest {
 
         @Test
         @Timeout(10)
-        internal fun `should start with ES meter registry`() {
-            assertThat(applicationContext.getBeansOfType(MeterRegistry::class.java)).isNotEmpty()
-            assertThat(applicationContext.getBeansOfType(ElasticMeterRegistry::class.java)).hasSize(1)
+        internal fun `should start with ES measurement publisher factory`() {
+            assertThat(applicationContext.getBeansOfType(CampaignMeterRegistry::class.java)).isNotEmpty()
+            assertThat(applicationContext.getBeansOfType(ElasticsearchMeasurementPublisherFactory::class.java)).isNotEmpty()
         }
     }
 }

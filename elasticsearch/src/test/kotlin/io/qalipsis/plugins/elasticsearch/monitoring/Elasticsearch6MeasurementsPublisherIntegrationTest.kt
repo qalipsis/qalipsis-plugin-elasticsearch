@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 AERIS IT Solutions GmbH
+ * Copyright 2024 AERIS IT Solutions GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,17 @@
  * permissions and limitations under the License.
  */
 
-package io.qalipsis.plugins.elasticsearch.events
+package io.qalipsis.plugins.elasticsearch.monitoring
 
 import io.qalipsis.plugins.elasticsearch.ELASTICSEARCH_6_IMAGE
+import io.qalipsis.plugins.elasticsearch.monitoring.meters.AbstractElasticsearchMeasurementPublisherIntegrationTest
 import org.testcontainers.elasticsearch.ElasticsearchContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.utility.DockerImageName
-import java.time.format.DateTimeFormatter
 
-internal class Elasticsearch6EventsPublisherIntegrationTest : AbstractElasticsearchEventsPublisherIntegrationTest() {
+internal class Elasticsearch6MeasurementPublisherIntegrationTest : AbstractElasticsearchMeasurementPublisherIntegrationTest() {
 
     override val container: ElasticsearchContainer = CONTAINER
-
-    override val dateFormatter: DateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
 
     override val requiresType: Boolean = true
 

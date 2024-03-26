@@ -14,12 +14,11 @@
  * permissions and limitations under the License.
  */
 
-package io.qalipsis.plugins.elasticsearch.events
+package io.qalipsis.plugins.elasticsearch.monitoring.events
 
 import assertk.all
 import assertk.assertThat
 import assertk.assertions.any
-import assertk.assertions.containsOnly
 import assertk.assertions.hasSize
 import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
@@ -29,11 +28,14 @@ import io.micronaut.context.ApplicationContext
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest
 import io.qalipsis.api.events.EventLevel
 import io.qalipsis.api.events.EventsPublisher
+import io.qalipsis.plugins.elasticsearch.monitoring.events.ElasticsearchEventsConfiguration
+import io.qalipsis.plugins.elasticsearch.monitoring.events.ElasticsearchEventsPublisher
 import jakarta.inject.Inject
+import java.time.Duration
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
-import java.time.Duration
+import org.testcontainers.shaded.org.apache.commons.lang3.StringUtils.containsOnly
 
 /**
  * Tests to verify the automatic configuration of the Elasticsearch publisher.

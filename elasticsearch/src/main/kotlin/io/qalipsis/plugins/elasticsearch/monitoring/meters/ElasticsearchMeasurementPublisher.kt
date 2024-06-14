@@ -137,7 +137,7 @@ internal class ElasticsearchMeasurementPublisher(
             .append(",\"name\":\"")
             .append(name)
             .append('"')
-            .append(",\"type\":\"")
+            .append(",\"@type\":\"")
             .append(type)
             .append('"')
         if (tags.isNotEmpty()) {

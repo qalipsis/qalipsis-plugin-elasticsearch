@@ -113,7 +113,7 @@ internal abstract class AbstractElasticsearchMeasurementPublisherIntegrationTest
 
         // Verification of the counter values.
         val countHit = hits[0]["_source"] as ObjectNode
-        assertEquals("counter", countHit["type"].asText())
+        assertEquals("counter", countHit["@type"].asText())
         assertEquals("qalipsis.first-campaign-5473653.scenario-one.step-uno.my-counter", countHit["name"].asText())
         assertNotNull(countHit["@timestamp"].asLong())
         assertEquals("count", countHit["metrics"][0]["statistic"].asText())
@@ -121,7 +121,7 @@ internal abstract class AbstractElasticsearchMeasurementPublisherIntegrationTest
 
         // Verification of the gauge values.
         val gaugeHit = hits[1]["_source"] as ObjectNode
-        assertEquals("gauge", gaugeHit["type"].asText())
+        assertEquals("gauge", gaugeHit["@type"].asText())
         assertEquals("bar", gaugeHit["tags"]["foo"].asText())
         assertEquals("one", gaugeHit["tags"]["cafe"].asText())
         assertEquals("qalipsis.third-campaign-7624839.scenario-three.step-tres.my-gauge", gaugeHit["name"].asText())
@@ -131,7 +131,7 @@ internal abstract class AbstractElasticsearchMeasurementPublisherIntegrationTest
 
         // Verification of the timer values.
         val timerHit = hits[2]["_source"] as ObjectNode
-        assertEquals("timer", timerHit["type"].asText())
+        assertEquals("timer", timerHit["@type"].asText())
         assertEquals("qalipsis.second-campaign-47628233.scenario-two.step-dos.my-timer", timerHit["name"].asText())
         assertNotNull(timerHit["@timestamp"].asLong())
         assertEquals("mean", timerHit["metrics"][0]["statistic"].asText())
@@ -147,7 +147,7 @@ internal abstract class AbstractElasticsearchMeasurementPublisherIntegrationTest
 
         // Verification of the summary values.
         val summaryHit = hits[3]["_source"] as ObjectNode
-        assertEquals("summary", summaryHit["type"].asText())
+        assertEquals("summary", summaryHit["@type"].asText())
         assertEquals("host", summaryHit["tags"]["local"].asText())
         assertEquals("summary", summaryHit["tags"]["dist"].asText())
         assertEquals("qalipsis.fourth-campaign-283239.scenario-four.step-quart.my-final-summary", summaryHit["name"].asText())

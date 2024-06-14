@@ -22,7 +22,7 @@ import io.micronaut.core.util.StringUtils
 import io.qalipsis.api.Executors
 import io.qalipsis.api.config.MetersConfig
 import io.qalipsis.api.meters.MeasurementPublisherFactory
-import io.qalipsis.plugins.elasticsearch.monitoring.ElasticsearchPublisher
+import io.qalipsis.plugins.elasticsearch.monitoring.ElasticsearchOperations
 import io.qalipsis.plugins.elasticsearch.monitoring.meters.ElasticsearchMeasurementPublisher
 import io.qalipsis.plugins.elasticsearch.monitoring.meters.ElasticsearchMeasurementConfiguration
 import io.qalipsis.plugins.elasticsearch.monitoring.meters.ElasticsearchMeasurementConfiguration.Companion.ELASTICSEARCH_ENABLED
@@ -42,15 +42,13 @@ import kotlinx.coroutines.CoroutineScope
 )
 internal class ElasticsearchMeasurementPublisherFactory(
     @Named(Executors.BACKGROUND_EXECUTOR_NAME) private val coroutineScope: CoroutineScope,
-    private val configuration: ElasticsearchMeasurementConfiguration,
-    private val elasticsearchPublisher: ElasticsearchPublisher,
+    private val configuration: ElasticsearchMeasurementConfiguration
 ) : MeasurementPublisherFactory {
 
     override fun getPublisher(): ElasticsearchMeasurementPublisher {
         return ElasticsearchMeasurementPublisher(
             coroutineScope = coroutineScope,
-            configuration = configuration,
-            elasticsearchPublisher = elasticsearchPublisher
+            configuration = configuration
         )
     }
 

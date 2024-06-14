@@ -19,14 +19,14 @@ package io.qalipsis.plugins.elasticsearch.monitoring
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.databind.node.TextNode
-import io.aerisconsulting.catadioptre.KTestable
 import io.qalipsis.api.logging.LoggerHelper.logger
 import io.qalipsis.api.meters.CampaignMeterRegistry
 import io.qalipsis.api.sync.ImmutableSlot
 import io.qalipsis.plugins.elasticsearch.ElasticsearchException
 import jakarta.inject.Singleton
 import java.time.Duration
-import java.util.*
+import java.util.UUID
+import java.util.Random
 import java.util.regex.Pattern
 import kotlinx.coroutines.runBlocking
 import org.apache.http.HttpHost
@@ -41,25 +41,30 @@ import org.elasticsearch.client.RestClient
 import kotlin.coroutines.CoroutineContext
 
 /**
- * Implementation of [ElasticsearchPublisher] to handle initialization of elasticsearch templates, as well as seeding data into elasticsearch.
+ * Implementation of [ElasticsearchOperations] to handle initialization of elasticsearch templates, as well as exporting data into elasticsearch.
  *
  * @author Francisca Eze
  */
-@Singleton
-internal class ElasticsearchPublisherImpl : ElasticsearchPublisher {
+internal class ElasticsearchOperationsImpl : ElasticsearchOperations {
 
+    /**
+     * RestClient that connects to an Elasticsearch cluster through HTTP.
+     */
     private lateinit var restClient: RestClient
 
+    /**
+     * Indicates if the version of the Elasticsearch client is version 7 or higher.
+     */
     private var majorVersionIsSevenOrMore = false
 
+    /**
+     * Facilitates the serialization and deserialization of Java objects.
+     */
     private val jsonMapper: ObjectMapper = ObjectMapper()
 
     private val random = Random()
 
-    private lateinit var elasticSearchConfiguration: MonitoringConfiguration
-
     override fun buildClient(configuration: MonitoringConfiguration) {
-        elasticSearchConfiguration = configuration
         val builder = RestClient.builder(*configuration.urls.map { HttpHost.create(it) }.toTypedArray())
         builder.setPathPrefix(configuration.pathPrefix)
         configuration.proxy?.let {
@@ -83,7 +88,7 @@ internal class ElasticsearchPublisherImpl : ElasticsearchPublisher {
         restClient = builder.build()
     }
 
-    override fun initializeTemplate(configuration: MonitoringConfiguration, publishingMode: String) {
+    override fun initializeTemplate(configuration: MonitoringConfiguration, publishingMode: PublishingMode) {
         logger.debug { "Checking the version of Elasticsearch" }
         val versionTree =
             jsonMapper.readTree(EntityUtils.toByteArray(restClient.performRequest(Request("GET", "/")).entity))
@@ -92,9 +97,9 @@ internal class ElasticsearchPublisherImpl : ElasticsearchPublisher {
         logger.debug { "Using Elasticsearch $version" }
 
         val templateResource =
-            if (majorVersionIsSevenOrMore) "$publishingMode/index-template-from-7.json" else "$publishingMode/index-template-before-7.json"
+            if (majorVersionIsSevenOrMore) "${publishingMode.value}/index-template-from-7.json" else "${publishingMode.value}/index-template-before-7.json"
         val jsonTemplate = jsonMapper.readTree(this::class.java.classLoader.getResource(templateResource)) as ObjectNode
-        val templateName = "qalipsis-$publishingMode"
+        val templateName = "qalipsis-${publishingMode.value}"
         jsonTemplate.put("index_patterns", "${configuration.indexPrefix}-*")
         (jsonTemplate["aliases"] as ObjectNode).putObject(configuration.indexPrefix)
         (jsonTemplate["settings"] as ObjectNode).apply {
@@ -117,11 +122,11 @@ internal class ElasticsearchPublisherImpl : ElasticsearchPublisher {
         }
     }
 
-    override fun createBulkItem(formattedDateToDocument: Pair<String, String>): String {
+    override fun createBulkItem(formattedDateToDocument: Pair<String, String>, indexPrefix: String): String {
         val uuid = UUID(random.nextLong(), random.nextLong())
         val type = if (majorVersionIsSevenOrMore) "" else """"_type":"$DOCUMENT_TYPE","""
         return """
-            {"index":{"_index":"${elasticSearchConfiguration.indexPrefix}-${formattedDateToDocument.first}",$type"_id":"$uuid"}}
+            {"index":{"_index":"$indexPrefix-${formattedDateToDocument.first}",$type"_id":"$uuid"}}
             ${formattedDateToDocument.second}
         """.trimIndent()
     }
@@ -192,7 +197,6 @@ internal class ElasticsearchPublisherImpl : ElasticsearchPublisher {
     /**
      * Copied from [io.micrometer.elastic.ElasticMeterRegistry.countCreatedItems].
      */
-    @KTestable
     override fun countCreatedItems(responseBody: String): Int {
         val matcher = STATUS_CREATED_PATTERN.matcher(responseBody)
         var count = 0

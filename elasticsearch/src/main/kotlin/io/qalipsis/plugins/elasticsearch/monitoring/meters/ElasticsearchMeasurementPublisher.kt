@@ -16,6 +16,7 @@
 
 package io.qalipsis.plugins.elasticsearch.monitoring.meters
 
+import io.aerisconsulting.catadioptre.KTestable
 import io.micronaut.context.annotation.Requires
 import io.qalipsis.api.Executors
 import io.qalipsis.api.lang.tryAndLogOrNull
@@ -24,7 +25,9 @@ import io.qalipsis.api.meters.DistributionMeasurementMetric
 import io.qalipsis.api.meters.MeasurementPublisher
 import io.qalipsis.api.meters.MeterSnapshot
 import io.qalipsis.api.sync.SuspendedCountLatch
-import io.qalipsis.plugins.elasticsearch.monitoring.ElasticsearchPublisher
+import io.qalipsis.plugins.elasticsearch.monitoring.ElasticsearchOperations
+import io.qalipsis.plugins.elasticsearch.monitoring.ElasticsearchOperationsImpl
+import io.qalipsis.plugins.elasticsearch.monitoring.PublishingMode
 import jakarta.inject.Named
 import java.time.Clock
 import java.time.ZonedDateTime
@@ -32,7 +35,6 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.elasticsearch.client.Request
@@ -47,7 +49,6 @@ import org.elasticsearch.client.RestClient
 internal class ElasticsearchMeasurementPublisher(
     @Named(Executors.BACKGROUND_EXECUTOR_NAME) private val coroutineScope: CoroutineScope,
     private val configuration: ElasticsearchMeasurementConfiguration,
-    private val elasticsearchPublisher: ElasticsearchPublisher,
 ) : MeasurementPublisher {
 
     private val indexFormatter = DateTimeFormatter.ofPattern(configuration.indexDatePattern)
@@ -58,17 +59,20 @@ internal class ElasticsearchMeasurementPublisher(
 
     private var publicationSemaphore: Semaphore = Semaphore(configuration.publishers)
 
-    private var prefix: String = if (configuration.prefix.isNotEmpty()) "${configuration.prefix}." else ""
+    @KTestable
+    private val elasticsearchOperations = ElasticsearchOperationsImpl()
+
+    private val prefix: String = if (configuration.prefix.isNotEmpty()) "${configuration.prefix}." else ""
 
 
     /**
-     * Initializes elasticsearch and keeps it ready for publishing of data.
+     * Initializes Elasticsearch and make it available for exporting of data.
      */
     override suspend fun init() {
         publicationLatch = SuspendedCountLatch(0)
         publicationSemaphore = Semaphore(configuration.publishers)
-        elasticsearchPublisher.buildClient(configuration)
-        elasticsearchPublisher.initializeTemplate(configuration, "meters")
+        elasticsearchOperations.buildClient(configuration)
+        elasticsearchOperations.initializeTemplate(configuration, PublishingMode.METERS)
     }
 
     override suspend fun publish(meters: Collection<MeterSnapshot<*>>) {
@@ -92,7 +96,7 @@ internal class ElasticsearchMeasurementPublisher(
             .joinToString(
                 separator = "\n",
                 postfix = "\n",
-                transform = elasticsearchPublisher::createBulkItem
+                transform = { elasticsearchOperations.createBulkItem(it, configuration.indexPrefix) }
             )
         val numberOfSentItems = meterSnapshots.size
         val bulkRequest = Request("POST", "_bulk")
@@ -100,7 +104,7 @@ internal class ElasticsearchMeasurementPublisher(
         val exportStart = System.nanoTime()
 
         try {
-            elasticsearchPublisher.executeBulk(
+            elasticsearchOperations.executeBulk(
                 bulkRequest,
                 exportStart,
                 numberOfSentItems,
@@ -122,7 +126,7 @@ internal class ElasticsearchMeasurementPublisher(
         val timestamp = indexFormatter.format(ZonedDateTime.ofInstant(meterSnapshot.timestamp, Clock.systemUTC().zone))
         val meterId = meterSnapshot.meter.id
         val name =
-            "$prefix${meterId.campaignKey.replaceSpaces()}.${meterId.scenarioName.replaceSpaces()}.${meterId.stepName.replaceSpaces()}.${meterId.meterName.replaceSpaces()}".lowercase()
+            "$prefix${meterId.campaignKey.format()}.${meterId.scenarioName.format()}.${meterId.stepName.format()}.${meterId.meterName.format()}".lowercase()
         val type = meterId.type.value.lowercase()
         val tags = meterId.tags
         stringBuilder.append("{\"")
@@ -160,10 +164,7 @@ internal class ElasticsearchMeasurementPublisher(
 
     override suspend fun stop() {
         logger.debug { "Stopping the meter publication of meters" }
-        runBlocking(coroutineScope.coroutineContext) {
-            logger.debug { "Waiting for ${publicationLatch.get()} publication jobs to be completed" }
-            publicationLatch.await()
-        }
+        publicationLatch.await()
         logger.debug { "Closing the Elasticsearch client" }
         tryAndLogOrNull(logger) {
             restClient.close()
@@ -174,7 +175,7 @@ internal class ElasticsearchMeasurementPublisher(
     /**
      * Replace spaces to a hyphen(-) as well as convert to a lowercase. This is to provide uniformity among name indexes.
      */
-    private fun String.replaceSpaces() = this.replace(" ", "-").lowercase()
+    private fun String.format() = this.replace(" ", "-").lowercase()
 
     companion object {
 

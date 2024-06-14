@@ -16,6 +16,7 @@
 
 package io.qalipsis.plugins.elasticsearch.monitoring.events
 
+import io.aerisconsulting.catadioptre.KTestable
 import io.micronaut.context.annotation.Requires
 import io.qalipsis.api.Executors
 import io.qalipsis.api.events.AbstractBufferedEventsPublisher
@@ -26,7 +27,8 @@ import io.qalipsis.api.lang.tryAndLogOrNull
 import io.qalipsis.api.logging.LoggerHelper.logger
 import io.qalipsis.api.meters.CampaignMeterRegistry
 import io.qalipsis.api.sync.SuspendedCountLatch
-import io.qalipsis.plugins.elasticsearch.monitoring.ElasticsearchPublisherImpl
+import io.qalipsis.plugins.elasticsearch.monitoring.ElasticsearchOperationsImpl
+import io.qalipsis.plugins.elasticsearch.monitoring.PublishingMode
 import jakarta.inject.Named
 import jakarta.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -53,8 +55,7 @@ internal class ElasticsearchEventsPublisher(
     @Named(Executors.BACKGROUND_EXECUTOR_NAME) private val coroutineContext: CoroutineContext,
     private val configuration: ElasticsearchEventsConfiguration,
     private val meterRegistry: CampaignMeterRegistry,
-    private val eventsConverter: EventJsonConverter,
-    private val abstractElasticsearchPublisher: ElasticsearchPublisherImpl,
+    private val eventsConverter: EventJsonConverter
 ) : AbstractBufferedEventsPublisher(
     configuration.minLevel,
     configuration.lingerPeriod,
@@ -70,11 +71,14 @@ internal class ElasticsearchEventsPublisher(
 
     private lateinit var publicationSemaphore: Semaphore
 
+    @KTestable
+    private val elasticsearchOperations = ElasticsearchOperationsImpl()
+
     override fun start() {
         publicationLatch = SuspendedCountLatch(0)
         publicationSemaphore = Semaphore(configuration.publishers)
-        abstractElasticsearchPublisher.buildClient(configuration)
-        abstractElasticsearchPublisher.initializeTemplate(configuration, "events")
+        elasticsearchOperations.buildClient(configuration)
+        elasticsearchOperations.initializeTemplate(configuration, PublishingMode.EVENTS)
         super.start()
     }
 
@@ -114,21 +118,23 @@ internal class ElasticsearchEventsPublisher(
             .joinToString(
                 separator = "\n",
                 postfix = "\n",
-                transform = abstractElasticsearchPublisher::createBulkItem
+                transform = { elasticsearchOperations.createBulkItem(it, configuration.indexPrefix) }
             )
 
         meterRegistry.timer(
             scenarioName = "",
             stepName = "",
             name = EVENTS_CONVERSIONS_TIMER_NAME,
-            tags = mapOf("publisher" to "elasticsearch"))
+            tags = mapOf("publisher" to "elasticsearch")
+        )
             .record(conversionStart.durationSinceNanos())
         val numberOfSentItems = values.size
         meterRegistry.counter(
             scenarioName = "",
             stepName = "",
             name = EVENTS_COUNT_TIMER_NAME,
-            tags = mapOf("publisher" to "elasticsearch"))
+            tags = mapOf("publisher" to "elasticsearch")
+        )
             .increment(numberOfSentItems.toDouble())
 
         val bulkRequest = Request("POST", "_bulk")
@@ -136,7 +142,7 @@ internal class ElasticsearchEventsPublisher(
         val exportStart = System.nanoTime()
 
         try {
-            abstractElasticsearchPublisher.executeBulk(
+            elasticsearchOperations.executeBulk(
                 bulkRequest,
                 exportStart,
                 numberOfSentItems,
@@ -150,7 +156,8 @@ internal class ElasticsearchEventsPublisher(
                 scenarioName = "",
                 stepName = "",
                 name = EVENTS_EXPORT_TIMER_NAME,
-                tags = mapOf("publisher" to "elasticsearch", "status" to "error"))
+                tags = mapOf("publisher" to "elasticsearch", "status" to "error")
+            )
                 .record(exportStart.durationSinceNanos())
             log.error(e) { e.message }
         }

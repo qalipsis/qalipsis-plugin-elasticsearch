@@ -36,7 +36,7 @@
         "normalizer": "lowercase_normalizer",
         "store": true
       },
-      "type": {
+      "@type": {
         "type": "keyword",
         "normalizer": "lowercase_normalizer",
         "store": true

@@ -24,7 +24,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 import io.aerisconsulting.catadioptre.coInvokeInvisible
 import io.mockk.coJustRun
 import io.mockk.every
-import io.mockk.impl.annotations.SpyK
 import io.qalipsis.api.events.Event
 import io.qalipsis.api.events.EventGeoPoint
 import io.qalipsis.api.events.EventJsonConverter
@@ -33,7 +32,7 @@ import io.qalipsis.api.events.EventRange
 import io.qalipsis.api.events.EventTag
 import io.qalipsis.api.meters.CampaignMeterRegistry
 import io.qalipsis.plugins.elasticsearch.ElasticsearchException
-import io.qalipsis.plugins.elasticsearch.monitoring.ElasticsearchPublisherImpl
+import io.qalipsis.plugins.elasticsearch.monitoring.events.catadioptre.elasticsearchOperations
 import io.qalipsis.test.coroutines.TestDispatcherProvider
 import io.qalipsis.test.mockk.relaxedMockk
 import org.apache.http.HttpHost
@@ -84,9 +83,6 @@ internal abstract class AbstractElasticsearchEventsPublisherIntegrationTest {
         }
     }
 
-    @SpyK(recordPrivateCalls = true)
-    protected val elasticsearchPublisher = ElasticsearchPublisherImpl()
-
     protected abstract val container: ElasticsearchContainer
 
     protected abstract val dateFormatter: DateTimeFormatter
@@ -126,8 +122,7 @@ internal abstract class AbstractElasticsearchEventsPublisherIntegrationTest {
             this.coroutineContext,
             configuration,
             meterRegistry,
-            eventsConverter,
-            elasticsearchPublisher
+            eventsConverter
         )
         publisher.start()
 
@@ -205,8 +200,7 @@ internal abstract class AbstractElasticsearchEventsPublisherIntegrationTest {
             this.coroutineContext,
             configuration,
             meterRegistry,
-            eventsConverter,
-            elasticsearchPublisher
+            eventsConverter
         )
         publisher.start()
         val bulkRequest = Request("POST", "_bulk")
@@ -224,7 +218,7 @@ internal abstract class AbstractElasticsearchEventsPublisherIntegrationTest {
 
         // when
         assertThrows<ResponseException> {
-            elasticsearchPublisher.executeBulk(bulkRequest, System.currentTimeMillis(), 1, meterRegistry, coroutineContext, "events")
+            publisher.elasticsearchOperations().executeBulk(bulkRequest, System.currentTimeMillis(), 1, meterRegistry, coroutineContext, "events")
         }
 
         publisher.stop()
@@ -239,8 +233,7 @@ internal abstract class AbstractElasticsearchEventsPublisherIntegrationTest {
             this.coroutineContext,
             configuration,
             meterRegistry,
-            eventsConverter,
-            elasticsearchPublisher
+            eventsConverter
         )
         publisher.start()
         val bulkRequest = Request("POST", "_bulk")
@@ -258,7 +251,7 @@ internal abstract class AbstractElasticsearchEventsPublisherIntegrationTest {
 
         // when
         val errorMessage = assertThrows<ElasticsearchException> {
-            elasticsearchPublisher.executeBulk(bulkRequest, System.currentTimeMillis(), 1, meterRegistry, coroutineContext, "events")
+            publisher.elasticsearchOperations().executeBulk(bulkRequest, System.currentTimeMillis(), 1, meterRegistry, coroutineContext, "events")
         }.message
 
         // then

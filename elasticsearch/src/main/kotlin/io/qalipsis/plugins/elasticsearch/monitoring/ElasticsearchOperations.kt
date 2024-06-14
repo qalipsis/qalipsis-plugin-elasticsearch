@@ -16,17 +16,20 @@
 
 package io.qalipsis.plugins.elasticsearch.monitoring
 
-import io.aerisconsulting.catadioptre.KTestable
 import io.qalipsis.api.meters.CampaignMeterRegistry
 import org.elasticsearch.client.Request
 import kotlin.coroutines.CoroutineContext
 
 /**
- * Handles initialization of elasticsearch templates, as well as seeding data into elasticsearch.
+ * Handles initialization of elasticsearch templates, as well as exporting data into elasticsearch.
  *
  * @author Francisca Eze
  */
-internal interface ElasticsearchPublisher {
+internal interface ElasticsearchOperations {
+
+    /**
+     * Initializes Elasticsearch and keeps it ready for publishing of data.
+     */
     fun buildClient(configuration: MonitoringConfiguration)
 
     /**
@@ -34,17 +37,17 @@ internal interface ElasticsearchPublisher {
      * This operation is synchronous to make the full starting process fail if something gets wrong.
      *
      */
-    fun initializeTemplate(configuration: MonitoringConfiguration, publishingMode: String)
+    fun initializeTemplate(configuration: MonitoringConfiguration, publishingMode: PublishingMode)
 
     /**
      * Creates a unique indexation item for the bulk request.
      *
      * See also [the official Elasticsearch documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html).
      */
-    fun createBulkItem(formattedDateToDocument: Pair<String, String>): String
+    fun createBulkItem(formattedDateToDocument: Pair<String, String>, indexPrefix: String): String
 
     /**
-     * Handles export of data into elasticsearch.
+     * Handles export of data into Elasticsearch.
      */
     suspend fun executeBulk(
         bulkRequest: Request,
@@ -58,6 +61,5 @@ internal interface ElasticsearchPublisher {
     /**
      * Copied from [io.micrometer.elastic.ElasticMeterRegistry.countCreatedItems].
      */
-    @KTestable
     fun countCreatedItems(responseBody: String): Int
 }

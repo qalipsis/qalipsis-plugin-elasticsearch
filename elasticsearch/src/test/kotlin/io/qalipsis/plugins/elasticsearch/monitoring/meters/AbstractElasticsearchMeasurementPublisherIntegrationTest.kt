@@ -23,7 +23,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
 import io.aerisconsulting.catadioptre.coInvokeInvisible
 import io.mockk.every
-import io.mockk.impl.annotations.SpyK
 import io.mockk.mockk
 import io.qalipsis.api.meters.Counter
 import io.qalipsis.api.meters.DistributionMeasurementMetric
@@ -36,7 +35,7 @@ import io.qalipsis.api.meters.MeterType
 import io.qalipsis.api.meters.Statistic
 import io.qalipsis.api.meters.Timer
 import io.qalipsis.plugins.elasticsearch.ElasticsearchException
-import io.qalipsis.plugins.elasticsearch.monitoring.ElasticsearchPublisherImpl
+import io.qalipsis.plugins.elasticsearch.monitoring.meters.catadioptre.elasticsearchOperations
 import io.qalipsis.test.coroutines.TestDispatcherProvider
 import java.time.Instant
 import org.apache.http.HttpHost
@@ -70,9 +69,6 @@ internal abstract class AbstractElasticsearchMeasurementPublisherIntegrationTest
     @RegisterExtension
     val testDispatcherProvider = TestDispatcherProvider()
 
-    @SpyK(recordPrivateCalls = true)
-    protected val abstractElasticsearchPublisher = ElasticsearchPublisherImpl()
-
     protected abstract val container: ElasticsearchContainer
 
     protected abstract val requiresType: Boolean
@@ -104,8 +100,7 @@ internal abstract class AbstractElasticsearchMeasurementPublisherIntegrationTest
         // given
         val publisher = ElasticsearchMeasurementPublisher(
             this,
-            configuration,
-            abstractElasticsearchPublisher
+            configuration
         )
         publisher.init()
 
@@ -177,8 +172,7 @@ internal abstract class AbstractElasticsearchMeasurementPublisherIntegrationTest
         // given
         val publisher = ElasticsearchMeasurementPublisher(
             this,
-            configuration,
-            abstractElasticsearchPublisher
+            configuration
         )
         publisher.init()
         val bulkRequest = Request("POST", "_bulk")
@@ -196,7 +190,7 @@ internal abstract class AbstractElasticsearchMeasurementPublisherIntegrationTest
 
         // when
         assertThrows<ResponseException> {
-            abstractElasticsearchPublisher.executeBulk(
+            publisher.elasticsearchOperations().executeBulk(
                 bulkRequest,
                 System.currentTimeMillis(),
                 1,
@@ -215,8 +209,7 @@ internal abstract class AbstractElasticsearchMeasurementPublisherIntegrationTest
         // given
         val publisher = ElasticsearchMeasurementPublisher(
             this,
-            configuration,
-            abstractElasticsearchPublisher
+            configuration
         )
         publisher.init()
         val bulkRequest = Request("POST", "_bulk")
@@ -234,7 +227,7 @@ internal abstract class AbstractElasticsearchMeasurementPublisherIntegrationTest
 
         // when
         val errorMessage = assertThrows<ElasticsearchException> {
-            abstractElasticsearchPublisher.executeBulk(
+            publisher.elasticsearchOperations().executeBulk(
                 bulkRequest,
                 System.currentTimeMillis(),
                 1,

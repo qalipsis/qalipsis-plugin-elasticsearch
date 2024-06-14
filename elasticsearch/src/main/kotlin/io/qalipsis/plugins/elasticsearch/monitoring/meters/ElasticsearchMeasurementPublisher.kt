@@ -25,20 +25,18 @@ import io.qalipsis.api.meters.DistributionMeasurementMetric
 import io.qalipsis.api.meters.MeasurementPublisher
 import io.qalipsis.api.meters.MeterSnapshot
 import io.qalipsis.api.sync.SuspendedCountLatch
-import io.qalipsis.plugins.elasticsearch.monitoring.ElasticsearchOperations
 import io.qalipsis.plugins.elasticsearch.monitoring.ElasticsearchOperationsImpl
 import io.qalipsis.plugins.elasticsearch.monitoring.PublishingMode
 import jakarta.inject.Named
-import java.time.Clock
-import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.elasticsearch.client.Request
 import org.elasticsearch.client.RestClient
+import java.time.Clock
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 
 /**
  * Implementation of measurement publisher to export meters to elasticsearch.
@@ -61,9 +59,6 @@ internal class ElasticsearchMeasurementPublisher(
 
     @KTestable
     private val elasticsearchOperations = ElasticsearchOperationsImpl()
-
-    private val prefix: String = if (configuration.prefix.isNotEmpty()) "${configuration.prefix}." else ""
-
 
     /**
      * Initializes Elasticsearch and make it available for exporting of data.
@@ -125,17 +120,15 @@ internal class ElasticsearchMeasurementPublisher(
         val stringBuilder = StringBuilder()
         val timestamp = indexFormatter.format(ZonedDateTime.ofInstant(meterSnapshot.timestamp, Clock.systemUTC().zone))
         val meterId = meterSnapshot.meter.id
-        val name =
-            "$prefix${meterId.campaignKey.format()}.${meterId.scenarioName.format()}.${meterId.stepName.format()}.${meterId.meterName.format()}".lowercase()
         val type = meterId.type.value.lowercase()
         val tags = meterId.tags
         stringBuilder.append("{\"")
             .append("@timestamp")
             .append("\":\"")
-            .append(meterSnapshot.timestamp.truncatedTo(ChronoUnit.MILLIS).toEpochMilli())
+            .append(meterSnapshot.timestamp.toEpochMilli())
             .append('"')
             .append(",\"name\":\"")
-            .append(name)
+            .append(meterId.meterName.format())
             .append('"')
             .append(",\"@type\":\"")
             .append(type)
@@ -145,14 +138,11 @@ internal class ElasticsearchMeasurementPublisher(
             val jsonTags = tags.entries.joinToString(",") { "\"${it.key}\":\"${it.value}\"" }
             stringBuilder.append(""""tags":{$jsonTags}""")
         }
-        val measurementJson = meterSnapshot.measurements.joinToString(
-            separator = ",",
-        ) {
+        val measurementJson = meterSnapshot.measurements.joinToString(separator = ",") {
             if (it is DistributionMeasurementMetric) {
-                val formattedObservationPoint = "%.1f".format(it.observationPoint)
-                """{"statistic":"${it.statistic.value.lowercase()}_$formattedObservationPoint","value":"${it.value}"}"""
+                """{"statistic":"${it.statistic.value.lowercase()}","percentile":${it.observationPoint},"value":${it.value}}"""
             } else {
-                """{"statistic":"${it.statistic.value.lowercase()}","value":"${it.value}"}"""
+                """{"statistic":"${it.statistic.value.lowercase()}","value":${it.value}}"""
             }
         }
 

@@ -19,6 +19,7 @@ package io.qalipsis.plugins.elasticsearch.monitoring.events
 import assertk.assertThat
 import assertk.assertions.contains
 import assertk.assertions.isNotNull
+import assertk.assertions.isTrue
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
 import io.aerisconsulting.catadioptre.coInvokeInvisible
@@ -177,15 +178,13 @@ internal abstract class AbstractElasticsearchEventsPublisherIntegrationTest {
         // Verification of the events with values.
         logValues.forEachIndexed { index, value ->
             val searchCriteria = values.getValue(value)
-            assertDoesNotThrow("Item of value $value and type ${value::class} was not found") {
-                hits.first { item ->
-                    kotlin.runCatching {
-                        (item["fields"] as ObjectNode).let { fields ->
-                            "my-event-$index" == fields.withArray("name")[0].asText() && searchCriteria(fields)
-                        }
-                    }.getOrDefault(false)
-                }
-            }
+            assertThat(hits.any { item ->
+                kotlin.runCatching {
+                    (item["fields"] as ObjectNode).let { fields ->
+                        "my-event-$index" == fields.withArray("name")[0].asText() && searchCriteria(fields)
+                    }
+                }.getOrDefault(false)
+            }, "Item of value $value and type ${value::class} was not found").isTrue()
         }
 
         publisher.stop()
@@ -218,7 +217,8 @@ internal abstract class AbstractElasticsearchEventsPublisherIntegrationTest {
 
         // when
         assertThrows<ResponseException> {
-            publisher.elasticsearchOperations().executeBulk(bulkRequest, System.currentTimeMillis(), 1, meterRegistry, coroutineContext, "events")
+            publisher.elasticsearchOperations()
+                .executeBulk(bulkRequest, System.currentTimeMillis(), 1, meterRegistry, coroutineContext, "events")
         }
 
         publisher.stop()
@@ -251,7 +251,8 @@ internal abstract class AbstractElasticsearchEventsPublisherIntegrationTest {
 
         // when
         val errorMessage = assertThrows<ElasticsearchException> {
-            publisher.elasticsearchOperations().executeBulk(bulkRequest, System.currentTimeMillis(), 1, meterRegistry, coroutineContext, "events")
+            publisher.elasticsearchOperations()
+                .executeBulk(bulkRequest, System.currentTimeMillis(), 1, meterRegistry, coroutineContext, "events")
         }.message
 
         // then

@@ -22,10 +22,9 @@ import io.micronaut.core.util.StringUtils
 import io.qalipsis.api.Executors
 import io.qalipsis.api.config.MetersConfig
 import io.qalipsis.api.meters.MeasurementPublisherFactory
-import io.qalipsis.plugins.elasticsearch.monitoring.ElasticsearchOperations
-import io.qalipsis.plugins.elasticsearch.monitoring.meters.ElasticsearchMeasurementPublisher
 import io.qalipsis.plugins.elasticsearch.monitoring.meters.ElasticsearchMeasurementConfiguration
 import io.qalipsis.plugins.elasticsearch.monitoring.meters.ElasticsearchMeasurementConfiguration.Companion.ELASTICSEARCH_ENABLED
+import io.qalipsis.plugins.elasticsearch.monitoring.meters.ElasticsearchMeasurementPublisher
 import jakarta.inject.Named
 import jakarta.inject.Singleton
 import kotlinx.coroutines.CoroutineScope

@@ -83,18 +83,18 @@ object PollScenario {
             }.flatten(BuildingMove::class)
             .logErrors()
             .map(ElasticsearchDocument<BuildingMove>::value)
-            .innerJoin(
-                using = { it.value.username },
-                on = {
-                    it.elasticsearch()
-                        .poll {
-                            name = "poll.out"
-                            index("building-moves")
-                            client {
-                                RestClient.builder(HttpHost("localhost", esPort, "http")).build()
-                            }
-                            query {
-                                """
+            .innerJoin()
+            .using { it.value.username }
+            .on {
+                it.elasticsearch()
+                    .poll {
+                        name = "poll.out"
+                        index("building-moves")
+                        client {
+                            RestClient.builder(HttpHost("localhost", esPort, "http")).build()
+                        }
+                        query {
+                            """
                                      {
                                         "query": {
                                             "term": {
@@ -105,15 +105,13 @@ object PollScenario {
                                         "sort":["timestamp","username"]
                                     }
                                     """.trimIndent()
-                            }
-                            pollDelay(Duration.ofSeconds(1))
                         }
-                        .flatten(BuildingMove::class)
-                        .logErrors()
-                        .map(ElasticsearchDocument<BuildingMove>::value)
-                },
-                having = { it.value.username }
-            )
+                        pollDelay(Duration.ofSeconds(1))
+                    }
+                    .flatten(BuildingMove::class)
+                    .logErrors()
+                    .map(ElasticsearchDocument<BuildingMove>::value)
+            }.having { it.value.username }
             .filterNotNull()
             .map {
                 it.first.username to Duration.between(it.first.timestamp, it.second.timestamp)

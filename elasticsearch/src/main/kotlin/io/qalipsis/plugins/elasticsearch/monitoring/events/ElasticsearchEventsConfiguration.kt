@@ -59,7 +59,7 @@ internal class ElasticsearchEventsConfiguration : MonitoringConfiguration {
     @field:NotBlank
     override var refreshInterval: String = "10s"
 
-    override var storeSource: Boolean = false
+    override var storeSource: Boolean = true
 
     @field:NotBlank
     override var indexDatePattern: String = "yyyy-MM-dd"

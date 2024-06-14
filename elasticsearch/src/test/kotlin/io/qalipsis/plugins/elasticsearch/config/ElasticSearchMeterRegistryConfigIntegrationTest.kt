@@ -82,7 +82,6 @@ internal class ElasticSearchMeterRegistryConfigIntegrationTest {
                             prop(ElasticsearchMeasurementConfiguration::replicas).isEqualTo(0)
                             prop(ElasticsearchMeasurementConfiguration::proxy).isEqualTo(null)
                             prop(ElasticsearchMeasurementConfiguration::refreshInterval).isEqualTo("10s")
-                            prop(ElasticsearchMeasurementConfiguration::prefix).isEqualTo("elastic")
                         }
                     }
 
@@ -129,13 +128,12 @@ internal class ElasticSearchMeterRegistryConfigIntegrationTest {
                                 prop(ElasticsearchMeasurementConfiguration::password).isNull()
                                 prop(ElasticsearchMeasurementConfiguration::indexPrefix).isEqualTo("qalipsis-meters")
                                 prop(ElasticsearchMeasurementConfiguration::indexDatePattern).isEqualTo("yyyy-MM-dd")
-                                prop(ElasticsearchMeasurementConfiguration::storeSource).isEqualTo(false)
+                                prop(ElasticsearchMeasurementConfiguration::storeSource).isEqualTo(true)
                                 prop(ElasticsearchMeasurementConfiguration::publishers).isEqualTo(1)
                                 prop(ElasticsearchMeasurementConfiguration::shards).isEqualTo(1)
                                 prop(ElasticsearchMeasurementConfiguration::replicas).isEqualTo(0)
                                 prop(ElasticsearchMeasurementConfiguration::proxy).isEqualTo(null)
                                 prop(ElasticsearchMeasurementConfiguration::refreshInterval).isEqualTo("10s")
-                                prop(ElasticsearchMeasurementConfiguration::prefix).isEqualTo("qalipsis")
                             }
                     }
             }
@@ -150,13 +148,12 @@ internal class ElasticSearchMeterRegistryConfigIntegrationTest {
                     prop(ElasticsearchMeasurementConfiguration::password).isEqualTo(null)
                     prop(ElasticsearchMeasurementConfiguration::indexPrefix).isEqualTo("qalipsis-meters")
                     prop(ElasticsearchMeasurementConfiguration::indexDatePattern).isEqualTo("yyyy-MM-dd")
-                    prop(ElasticsearchMeasurementConfiguration::storeSource).isEqualTo(false)
+                    prop(ElasticsearchMeasurementConfiguration::storeSource).isEqualTo(true)
                     prop(ElasticsearchMeasurementConfiguration::publishers).isEqualTo(1)
                     prop(ElasticsearchMeasurementConfiguration::shards).isEqualTo(1)
                     prop(ElasticsearchMeasurementConfiguration::replicas).isEqualTo(0)
                     prop(ElasticsearchMeasurementConfiguration::proxy).isEqualTo(null)
                     prop(ElasticsearchMeasurementConfiguration::refreshInterval).isEqualTo("10s")
-                    prop(ElasticsearchMeasurementConfiguration::prefix).isEqualTo("qalipsis")
                 }
 
 
@@ -169,13 +166,12 @@ internal class ElasticSearchMeterRegistryConfigIntegrationTest {
                     prop(ElasticsearchMeasurementConfiguration::password).isEqualTo(null)
                     prop(ElasticsearchMeasurementConfiguration::indexPrefix).isEqualTo("qalipsis-meters")
                     prop(ElasticsearchMeasurementConfiguration::indexDatePattern).isEqualTo("yyyy-MM-dd")
-                    prop(ElasticsearchMeasurementConfiguration::storeSource).isEqualTo(false)
+                    prop(ElasticsearchMeasurementConfiguration::storeSource).isEqualTo(true)
                     prop(ElasticsearchMeasurementConfiguration::publishers).isEqualTo(1)
                     prop(ElasticsearchMeasurementConfiguration::shards).isEqualTo(1)
                     prop(ElasticsearchMeasurementConfiguration::replicas).isEqualTo(0)
                     prop(ElasticsearchMeasurementConfiguration::proxy).isEqualTo(null)
                     prop(ElasticsearchMeasurementConfiguration::refreshInterval).isEqualTo("10s")
-                    prop(ElasticsearchMeasurementConfiguration::prefix).isEqualTo("qalipsis")
                 }
         }
 

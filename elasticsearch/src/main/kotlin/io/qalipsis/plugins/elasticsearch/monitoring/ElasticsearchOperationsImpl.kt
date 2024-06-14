@@ -23,11 +23,6 @@ import io.qalipsis.api.logging.LoggerHelper.logger
 import io.qalipsis.api.meters.CampaignMeterRegistry
 import io.qalipsis.api.sync.ImmutableSlot
 import io.qalipsis.plugins.elasticsearch.ElasticsearchException
-import jakarta.inject.Singleton
-import java.time.Duration
-import java.util.UUID
-import java.util.Random
-import java.util.regex.Pattern
 import kotlinx.coroutines.runBlocking
 import org.apache.http.HttpHost
 import org.apache.http.auth.AuthScope
@@ -38,6 +33,10 @@ import org.elasticsearch.client.Request
 import org.elasticsearch.client.Response
 import org.elasticsearch.client.ResponseListener
 import org.elasticsearch.client.RestClient
+import java.time.Duration
+import java.util.Random
+import java.util.UUID
+import java.util.regex.Pattern
 import kotlin.coroutines.CoroutineContext
 
 /**

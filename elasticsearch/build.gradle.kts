@@ -51,7 +51,6 @@ dependencies {
 
     api("io.qalipsis:qalipsis-api-common")
     api("io.qalipsis:qalipsis-api-dsl")
-    api("io.micronaut.micrometer:micronaut-micrometer-registry-elastic")
 
     kapt(platform("io.qalipsis:qalipsis-plugin-platform:${pluginPlatformVersion}"))
     kapt("io.aeris-consulting:catadioptre-annotations")

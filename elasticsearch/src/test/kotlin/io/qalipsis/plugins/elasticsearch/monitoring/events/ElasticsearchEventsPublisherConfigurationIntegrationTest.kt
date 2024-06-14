@@ -14,7 +14,7 @@
  * permissions and limitations under the License.
  */
 
-package io.qalipsis.plugins.elasticsearch.events
+package io.qalipsis.plugins.elasticsearch.monitoring.events
 
 import assertk.all
 import assertk.assertThat
@@ -30,10 +30,10 @@ import io.micronaut.test.extensions.junit5.annotation.MicronautTest
 import io.qalipsis.api.events.EventLevel
 import io.qalipsis.api.events.EventsPublisher
 import jakarta.inject.Inject
+import java.time.Duration
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
-import java.time.Duration
 
 /**
  * Tests to verify the automatic configuration of the Elasticsearch publisher.

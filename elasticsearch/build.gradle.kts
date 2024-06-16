@@ -50,9 +50,12 @@ dependencies {
     compileOnly("io.aeris-consulting:catadioptre-annotations")
 
     compileOnly("io.micronaut:micronaut-runtime")
-    api("org.elasticsearch.client:elasticsearch-rest-client:$elasticsearchVersion")
+    api("org.elasticsearch.client:elasticsearch-rest-client:$elasticsearchVersion") {
+        exclude("commons-logging", "commons-logging")
+    }
     implementation("com.fasterxml.jackson.core:jackson-databind")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+    runtimeOnly("org.slf4j:jcl-over-slf4j:2.0.7")
 
     api("io.qalipsis:qalipsis-api-common")
     api("io.qalipsis:qalipsis-api-dsl")

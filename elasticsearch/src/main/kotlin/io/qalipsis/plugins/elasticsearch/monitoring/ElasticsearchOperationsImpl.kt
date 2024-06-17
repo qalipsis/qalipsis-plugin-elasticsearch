@@ -205,6 +205,10 @@ internal class ElasticsearchOperationsImpl : ElasticsearchOperations {
         return count
     }
 
+    override fun close() {
+        restClient.close()
+    }
+
     companion object {
 
         private const val DOCUMENT_TYPE = "_doc"

@@ -33,7 +33,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.elasticsearch.client.Request
-import org.elasticsearch.client.RestClient
 import java.time.Clock
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -50,8 +49,6 @@ internal class ElasticsearchMeasurementPublisher(
 ) : MeasurementPublisher {
 
     private val indexFormatter = DateTimeFormatter.ofPattern(configuration.indexDatePattern)
-
-    private lateinit var restClient: RestClient
 
     private var publicationLatch: SuspendedCountLatch = SuspendedCountLatch(0)
 
@@ -157,7 +154,7 @@ internal class ElasticsearchMeasurementPublisher(
         publicationLatch.await()
         logger.debug { "Closing the Elasticsearch client" }
         tryAndLogOrNull(logger) {
-            restClient.close()
+            elasticsearchOperations.close()
         }
         logger.debug { "The meters logger was stopped" }
     }

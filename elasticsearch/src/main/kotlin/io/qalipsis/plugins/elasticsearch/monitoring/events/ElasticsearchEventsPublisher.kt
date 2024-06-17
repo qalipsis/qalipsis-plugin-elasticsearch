@@ -37,7 +37,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.elasticsearch.client.Request
-import org.elasticsearch.client.RestClient
 import java.time.Clock
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -65,8 +64,6 @@ internal class ElasticsearchEventsPublisher(
 
     private val indexFormatter = DateTimeFormatter.ofPattern(configuration.indexDatePattern)
 
-    private lateinit var restClient: RestClient
-
     private lateinit var publicationLatch: SuspendedCountLatch
 
     private lateinit var publicationSemaphore: Semaphore
@@ -91,7 +88,7 @@ internal class ElasticsearchEventsPublisher(
         }
         log.debug { "Closing the Elasticsearch client" }
         tryAndLogOrNull(log) {
-            restClient.close()
+            elasticsearchOperations.close()
         }
         log.debug { "The events logger was stopped" }
     }

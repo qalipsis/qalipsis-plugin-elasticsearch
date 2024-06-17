@@ -62,4 +62,9 @@ internal interface ElasticsearchOperations {
      * Copied from [io.micrometer.elastic.ElasticMeterRegistry.countCreatedItems].
      */
     fun countCreatedItems(responseBody: String): Int
+
+    /**
+     * Closes all the open connections.
+     */
+    fun close()
 }

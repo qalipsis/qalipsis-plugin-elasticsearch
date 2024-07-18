@@ -67,7 +67,7 @@ internal class ElasticsearchMeasurementPublisher(
         elasticsearchOperations.initializeTemplate(configuration, PublishingMode.METERS)
     }
 
-    override suspend fun publish(meters: Collection<MeterSnapshot<*>>) {
+    override suspend fun publish(meters: Collection<MeterSnapshot>) {
         publicationLatch.increment()
         coroutineScope.launch {
             try {
@@ -80,7 +80,7 @@ internal class ElasticsearchMeasurementPublisher(
         }
     }
 
-    private suspend fun performPublish(meterSnapshots: Collection<MeterSnapshot<*>>) {
+    private suspend fun performPublish(meterSnapshots: Collection<MeterSnapshot>) {
         logger.debug { "Sending ${meterSnapshots.size} meters to Elasticsearch" }
         // Convert the data for a bulk post.
         val requestBody = meterSnapshots
@@ -113,10 +113,10 @@ internal class ElasticsearchMeasurementPublisher(
     /**
      * Converts a collection of [MeterSnapshot]s to json format.
      */
-    private fun metersToJsonConverter(meterSnapshot: MeterSnapshot<*>): Pair<String, String> {
+    private fun metersToJsonConverter(meterSnapshot: MeterSnapshot): Pair<String, String> {
         val stringBuilder = StringBuilder()
         val timestamp = indexFormatter.format(ZonedDateTime.ofInstant(meterSnapshot.timestamp, Clock.systemUTC().zone))
-        val meterId = meterSnapshot.meter.id
+        val meterId = meterSnapshot.meterId
         val type = meterId.type.value.lowercase()
         val tags = meterId.tags
         stringBuilder.append("{\"")

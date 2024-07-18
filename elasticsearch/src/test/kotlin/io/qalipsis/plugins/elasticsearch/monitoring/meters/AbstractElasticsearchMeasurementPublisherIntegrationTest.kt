@@ -16,9 +16,12 @@
 
 package io.qalipsis.plugins.elasticsearch.monitoring.meters
 
+import assertk.all
 import assertk.assertThat
+import assertk.assertions.any
 import assertk.assertions.contains
 import assertk.assertions.hasSize
+import assertk.assertions.isEqualTo
 import assertk.assertions.isNotNull
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ArrayNode
@@ -26,16 +29,12 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 import io.aerisconsulting.catadioptre.coInvokeInvisible
 import io.mockk.every
 import io.mockk.mockk
-import io.qalipsis.api.meters.Counter
 import io.qalipsis.api.meters.DistributionMeasurementMetric
-import io.qalipsis.api.meters.DistributionSummary
-import io.qalipsis.api.meters.Gauge
 import io.qalipsis.api.meters.MeasurementMetric
 import io.qalipsis.api.meters.Meter
 import io.qalipsis.api.meters.MeterSnapshot
 import io.qalipsis.api.meters.MeterType
 import io.qalipsis.api.meters.Statistic
-import io.qalipsis.api.meters.Timer
 import io.qalipsis.plugins.elasticsearch.ElasticsearchException
 import io.qalipsis.plugins.elasticsearch.monitoring.meters.catadioptre.elasticsearchOperations
 import io.qalipsis.test.coroutines.TestDispatcherProvider
@@ -45,8 +44,6 @@ import org.elasticsearch.client.Request
 import org.elasticsearch.client.ResponseException
 import org.elasticsearch.client.RestClient
 import org.junit.jupiter.api.AfterAll
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
@@ -112,63 +109,140 @@ internal abstract class AbstractElasticsearchMeasurementPublisherIntegrationTest
 
         // then
         val hitsJson = requestEvents()
-        val hits = hitsJson.withArray("hits")
-
-        // Verification of the counter values.
-        val countHit = hits[0]["_source"] as ObjectNode
-        assertEquals("counter", countHit["@type"].asText())
-        assertEquals("my-counter", countHit["name"].asText())
-        assertNotNull(countHit["@timestamp"].asLong())
-        assertEquals("count", countHit["metrics"][0]["statistic"].asText())
-        assertEquals(9.0, countHit["metrics"][0]["value"].asDouble())
-
-        // Verification of the gauge values.
-        val gaugeHit = hits[1]["_source"] as ObjectNode
-        assertEquals("gauge", gaugeHit["@type"].asText())
-        assertEquals("bar", gaugeHit["tags"]["foo"].asText())
-        assertEquals("one", gaugeHit["tags"]["cafe"].asText())
-        assertEquals("my-gauge", gaugeHit["name"].asText())
-        assertNotNull(gaugeHit["@timestamp"].asLong())
-        assertEquals("value", gaugeHit["metrics"][0]["statistic"].asText())
-        assertEquals(5.0, gaugeHit["metrics"][0]["value"].asDouble())
-
-        // Verification of the timer values.
-        val timerHit = hits[2]["_source"] as ObjectNode
-        assertEquals("timer", timerHit["@type"].asText())
-        assertEquals("my-timer", timerHit["name"].asText())
-        assertNotNull(timerHit["@timestamp"].asLong())
-        assertEquals("mean", timerHit["metrics"][0]["statistic"].asText())
-        assertEquals(224.0, timerHit["metrics"][0]["value"].asDouble())
-        assertEquals("total_time", timerHit["metrics"][1]["statistic"].asText())
-        assertEquals(178713.0, timerHit["metrics"][1]["value"].asDouble())
-        assertEquals("max", timerHit["metrics"][2]["statistic"].asText())
-        assertEquals(54328.5, timerHit["metrics"][2]["value"].asDouble())
-        assertEquals("percentile", timerHit["metrics"][3]["statistic"].asText())
-        assertEquals(85.0, timerHit["metrics"][3]["percentile"].asDouble())
-        assertEquals(548.5, timerHit["metrics"][3]["value"].asDouble())
-        assertEquals("percentile", timerHit["metrics"][4]["statistic"].asText())
-        assertEquals(50.0, timerHit["metrics"][4]["percentile"].asDouble())
-        assertEquals(54328.5, timerHit["metrics"][4]["value"].asDouble())
-
-        // Verification of the summary values.
-        val summaryHit = hits[3]["_source"] as ObjectNode
-        assertEquals("summary", summaryHit["@type"].asText())
-        assertEquals("host", summaryHit["tags"]["local"].asText())
-        assertEquals("summary", summaryHit["tags"]["dist"].asText())
-        assertEquals("my-final-summary", summaryHit["name"].asText())
-        assertNotNull(summaryHit["@timestamp"].asLong())
-        assertEquals("count", summaryHit["metrics"][0]["statistic"].asText())
-        assertEquals(70.0, summaryHit["metrics"][0]["value"].asDouble())
-        assertEquals("total", summaryHit["metrics"][1]["statistic"].asText())
-        assertEquals(17873213.0, summaryHit["metrics"][1]["value"].asDouble())
-        assertEquals("max", summaryHit["metrics"][2]["statistic"].asText())
-        assertEquals(548.5, summaryHit["metrics"][2]["value"].asDouble())
-        assertEquals("percentile", summaryHit["metrics"][3]["statistic"].asText())
-        assertEquals(45.0, summaryHit["metrics"][3]["percentile"].asDouble())
-        assertEquals(54.5, summaryHit["metrics"][3]["value"].asDouble())
-        assertEquals("percentile", summaryHit["metrics"][4]["statistic"].asText())
-        assertEquals(74.5, summaryHit["metrics"][4]["percentile"].asDouble())
-        assertEquals(548.5, summaryHit["metrics"][4]["value"].asDouble())
+        assertThat(hitsJson.withArray("hits")).all {
+            // Verification of the counter values.
+            any { hit ->
+                hit.transform { it["_source"] as ObjectNode }.all {
+                    transform { it.size() }.isEqualTo(5)
+                    transform { it["name"].asText() }.isEqualTo("my-counter")
+                    transform { it["@type"].asText() }.isEqualTo("counter")
+                    transform { it["@timestamp"].asLong() }.isNotNull()
+                    transform { it["metrics"] }.all {
+                        any {
+                            it.transform { it["statistic"].asText() }.isEqualTo("count")
+                            it.transform { it["value"].asInt() }.isEqualTo(9)
+                        }
+                    }
+                    transform { it["tags"] as ObjectNode }.all {
+                        transform { it.size() }.isEqualTo(3)
+                        transform { it["campaign"].asText() }.isEqualTo("first campaign 5473653")
+                        transform { it["scenario"].asText() }.isEqualTo("first scenario")
+                        transform { it["step"].asText() }.isEqualTo("step number one")
+                    }
+                }
+            }
+            // Verification of the gauge values.
+            any { hit ->
+                hit.transform { it["_source"] as ObjectNode }.all {
+                    transform { it.size() }.isEqualTo(5)
+                    transform { it["name"].asText() }.isEqualTo("my-gauge")
+                    transform { it["@type"].asText() }.isEqualTo("gauge")
+                    transform { it["@timestamp"].asLong() }.isNotNull()
+                    transform { it["metrics"] }.all {
+                        any {
+                            it.transform { it["statistic"].asText() }.isEqualTo("value")
+                            it.transform { it["value"].asInt() }.isEqualTo(5)
+                        }
+                    }
+                    transform { it["tags"] as ObjectNode }.all {
+                        transform { it.size() }.isEqualTo(5)
+                        transform { it["campaign"].asText() }.isEqualTo("third CAMPAIGN 7624839")
+                        transform { it["scenario"].asText() }.isEqualTo("third scenario")
+                        transform { it["step"].asText() }.isEqualTo("step number three")
+                        transform { it["foo"].asText() }.isEqualTo("bar")
+                        transform { it["any-tag"].asText() }.isEqualTo("one")
+                    }
+                }
+            }
+            // Verification of the timer values.
+            any { hit ->
+                hit.transform { it["_source"] as ObjectNode }.all {
+                    transform { it.size() }.isEqualTo(5)
+                    transform { it["name"].asText() }.isEqualTo("my-timer")
+                    transform { it["@type"].asText() }.isEqualTo("timer")
+                    transform { it["@timestamp"].asLong() }.isNotNull()
+                    transform { it["metrics"] }.all {
+                        any {
+                            it.transform { it["statistic"].asText() }.isEqualTo("count")
+                            it.transform { it["value"].asInt() }.isEqualTo(80)
+                        }
+                        any {
+                            it.transform { it["statistic"].asText() }.isEqualTo("mean")
+                            it.transform { it["value"].asInt() }.isEqualTo(224)
+                        }
+                        any {
+                            it.transform { it["statistic"].asText() }.isEqualTo("total_time")
+                            it.transform { it["value"].asInt() }.isEqualTo(178713)
+                        }
+                        any {
+                            it.transform { it["statistic"].asText() }.isEqualTo("max")
+                            it.transform { it["value"].asDouble() }.isEqualTo(54328.5)
+                        }
+                        any {
+                            it.transform { it["statistic"].asText() }.isEqualTo("percentile")
+                            it.transform { it["percentile"].asDouble() }.isEqualTo(85.0)
+                            it.transform { it["value"].asDouble() }.isEqualTo(548.5)
+                        }
+                        any {
+                            it.transform { it["statistic"].asText() }.isEqualTo("percentile")
+                            it.transform { it["percentile"].asDouble() }.isEqualTo(50.0)
+                            it.transform { it["value"].asDouble() }.isEqualTo(54328.5)
+                        }
+                    }
+                    transform { it["tags"] as ObjectNode }.all {
+                        transform { it.size() }.isEqualTo(3)
+                        transform { it["campaign"].asText() }.isEqualTo("second campaign 47628233")
+                        transform { it["scenario"].asText() }.isEqualTo("second scenario")
+                        transform { it["step"].asText() }.isEqualTo("step number two")
+                    }
+                }
+            }
+            // Verification of the summary values.
+            any { hit ->
+                hit.transform { it["_source"] as ObjectNode }.all {
+                    transform { it.size() }.isEqualTo(5)
+                    transform { it["name"].asText() }.isEqualTo("my-final-summary")
+                    transform { it["@type"].asText() }.isEqualTo("summary")
+                    transform { it["@timestamp"].asLong() }.isNotNull()
+                    transform { it["metrics"] }.all {
+                        any {
+                            it.transform { it["statistic"].asText() }.isEqualTo("count")
+                            it.transform { it["value"].asInt() }.isEqualTo(70)
+                        }
+                        any {
+                            it.transform { it["statistic"].asText() }.isEqualTo("mean")
+                            it.transform { it["value"].asInt() }.isEqualTo(22)
+                        }
+                        any {
+                            it.transform { it["statistic"].asText() }.isEqualTo("total")
+                            it.transform { it["value"].asDouble() }.isEqualTo(1.7873213E7)
+                        }
+                        any {
+                            it.transform { it["statistic"].asText() }.isEqualTo("max")
+                            it.transform { it["value"].asDouble() }.isEqualTo(548.5)
+                        }
+                        any {
+                            it.transform { it["statistic"].asText() }.isEqualTo("percentile")
+                            it.transform { it["percentile"].asDouble() }.isEqualTo(45.0)
+                            it.transform { it["value"].asDouble() }.isEqualTo(54.5)
+                        }
+                        any {
+                            it.transform { it["statistic"].asText() }.isEqualTo("percentile")
+                            it.transform { it["percentile"].asDouble() }.isEqualTo(74.5)
+                            it.transform { it["value"].asDouble() }.isEqualTo(548.5)
+                        }
+                    }
+                    transform { it["tags"] as ObjectNode }.all {
+                        transform { it.size() }.isEqualTo(5)
+                        transform { it["campaign"].asText() }.isEqualTo("fourth CAMPAIGN 283239")
+                        transform { it["scenario"].asText() }.isEqualTo("fourth scenario")
+                        transform { it["step"].asText() }.isEqualTo("step quatro")
+                        transform { it["dist"].asText() }.isEqualTo("summary")
+                        transform { it["local"].asText() }.isEqualTo("host")
+                    }
+                }
+            }
+        }
 
         // Test the search by statistics type.
         val searchRequest = Request("GET", "/qalipsis-meters/_search?size=100")
@@ -193,7 +267,7 @@ internal abstract class AbstractElasticsearchMeasurementPublisherIntegrationTest
         val response = EntityUtils.toString(restClient.performRequest(searchRequest).entity)
         val countTypeHits = (ObjectMapper().readTree(response)["hits"] as ObjectNode)
             .let { hits -> hits.get("hits") as ArrayNode }.toList()
-        assertThat(countTypeHits).hasSize(2)
+        assertThat(countTypeHits).hasSize(3)
     }
 
     @Test
@@ -271,62 +345,49 @@ internal abstract class AbstractElasticsearchMeasurementPublisherIntegrationTest
         publisher.stop()
     }
 
-    private fun createData(): List<MeterSnapshot<*>> {
-        val counterMock = mockk<Counter> {
-            every { id } returns mockk<Meter.Id> {
-                every { meterName } returns "my counter"
-                every { tags } returns emptyMap()
-                every { type } returns MeterType.COUNTER
-                every { scenarioName } returns "SCENARIO one"
-                every { campaignKey } returns "first campaign 5473653"
-                every { stepName } returns "step uno"
-            }
-        }
-        val timerMock = mockk<Timer> {
-            every { id } returns mockk<Meter.Id> {
-                every { meterName } returns "my timer"
-                every { tags } returns emptyMap()
-                every { type } returns MeterType.TIMER
-                every { scenarioName } returns "SCENARIO two"
-                every { campaignKey } returns "second campaign 47628233"
-                every { stepName } returns "step dos"
-            }
-        }
-        val gaugeMock = mockk<Gauge> {
-            every { id } returns mockk<Meter.Id> {
-                every { meterName } returns "my gauge"
-                every { tags } returns mapOf("foo" to "bar", "cafe" to "one")
-                every { type } returns MeterType.GAUGE
-                every { scenarioName } returns "SCENARIO three"
-                every { campaignKey } returns "third CAMPAIGN 7624839"
-                every { stepName } returns "step tres"
-            }
-        }
-        val summaryMock = mockk<DistributionSummary> {
-            every { id } returns mockk<Meter.Id> {
-                every { meterName } returns "my final summary"
-                every { tags } returns mapOf("dist" to "summary", "local" to "host")
-                every { type } returns MeterType.DISTRIBUTION_SUMMARY
-                every { scenarioName } returns "scenario four"
-                every { campaignKey } returns "fourth CAMPAIGN 283239"
-                every { stepName } returns "step quart"
-            }
-        }
+    private fun createData(): List<MeterSnapshot> {
         val now = Instant.now()
-        val countSnapshot = mockk<MeterSnapshot<Counter>> {
+        val countSnapshot = mockk<MeterSnapshot> {
             every { timestamp } returns now
-            every { meter } returns counterMock
+            every { meterId } returns Meter.Id(
+                "my counter",
+                MeterType.COUNTER,
+                mapOf(
+                    "scenario" to "first scenario",
+                    "campaign" to "first campaign 5473653",
+                    "step" to "step number one"
+                )
+            )
             every { measurements } returns listOf(MeasurementMetric(9.0, Statistic.COUNT))
         }
-        val gaugeSnapshot = mockk<MeterSnapshot<Gauge>> {
+        val gaugeSnapshot = mockk<MeterSnapshot> {
             every { timestamp } returns now
-            every { meter } returns gaugeMock
+            every { meterId } returns Meter.Id(
+                "my gauge",
+                MeterType.GAUGE,
+                mapOf(
+                    "foo" to "bar",
+                    "any-tag" to "one",
+                    "scenario" to "third scenario",
+                    "campaign" to "third CAMPAIGN 7624839",
+                    "step" to "step number three"
+                )
+            )
             every { measurements } returns listOf(MeasurementMetric(5.0, Statistic.VALUE))
         }
-        val timerSnapshot = mockk<MeterSnapshot<Timer>> {
+        val timerSnapshot = mockk<MeterSnapshot> {
             every { timestamp } returns now
-            every { meter } returns timerMock
+            every { meterId } returns Meter.Id(
+                "my timer",
+                MeterType.TIMER,
+                mapOf(
+                    "scenario" to "second scenario",
+                    "campaign" to "second campaign 47628233",
+                    "step" to "step number two"
+                )
+            )
             every { measurements } returns listOf(
+                MeasurementMetric(80.0, Statistic.COUNT),
                 MeasurementMetric(224.0, Statistic.MEAN),
                 MeasurementMetric(178713.0, Statistic.TOTAL_TIME),
                 MeasurementMetric(54328.5, Statistic.MAX),
@@ -334,11 +395,22 @@ internal abstract class AbstractElasticsearchMeasurementPublisherIntegrationTest
                 DistributionMeasurementMetric(54328.5, Statistic.PERCENTILE, 50.0),
             )
         }
-        val summarySnapshot = mockk<MeterSnapshot<DistributionSummary>> {
+        val summarySnapshot = mockk<MeterSnapshot> {
             every { timestamp } returns now
-            every { meter } returns summaryMock
+            every { meterId } returns Meter.Id(
+                "my final summary",
+                MeterType.DISTRIBUTION_SUMMARY,
+                mapOf(
+                    "dist" to "summary",
+                    "local" to "host",
+                    "scenario" to "fourth scenario",
+                    "campaign" to "fourth CAMPAIGN 283239",
+                    "step" to "step quatro"
+                )
+            )
             every { measurements } returns listOf(
                 MeasurementMetric(70.0, Statistic.COUNT),
+                MeasurementMetric(22.0, Statistic.MEAN),
                 MeasurementMetric(17873213.0, Statistic.TOTAL),
                 MeasurementMetric(548.5, Statistic.MAX),
                 DistributionMeasurementMetric(54.5, Statistic.PERCENTILE, 45.0),

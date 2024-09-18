@@ -242,6 +242,76 @@ internal abstract class AbstractElasticsearchMeasurementPublisherIntegrationTest
                     }
                 }
             }
+
+            // Verification of the rate values.
+            any { hit ->
+                hit.transform { it["_source"] as ObjectNode }.all {
+                    transform { it.size() }.isEqualTo(5)
+                    transform { it["name"].asText() }.isEqualTo("my-rate")
+                    transform { it["@type"].asText() }.isEqualTo("rate")
+                    transform { it["@timestamp"].asLong() }.isNotNull()
+                    transform { it["metrics"] }.all {
+                        any {
+                            it.transform { it["statistic"].asText() }.isEqualTo("value")
+                            it.transform { it["value"].asInt() }.isEqualTo(2)
+                        }
+                    }
+                    transform { it["tags"] as ObjectNode }.all {
+                        transform { it.size() }.isEqualTo(5)
+                        transform { it["campaign"].asText() }.isEqualTo("campaign 39")
+                        transform { it["scenario"].asText() }.isEqualTo("fifth scenario")
+                        transform { it["step"].asText() }.isEqualTo("step number five")
+                        transform { it["foo"].asText() }.isEqualTo("bar")
+                        transform { it["local"].asText() }.isEqualTo("host")
+                    }
+                }
+            }
+
+            // Verification of the throughput values.
+            any { hit ->
+                hit.transform { it["_source"] as ObjectNode }.all {
+                    transform { it.size() }.isEqualTo(5)
+                    transform { it["name"].asText() }.isEqualTo("throughput")
+                    transform { it["@type"].asText() }.isEqualTo("throughput")
+                    transform { it["@timestamp"].asLong() }.isNotNull()
+                    transform { it["metrics"] }.all {
+                        any {
+                            it.transform { it["statistic"].asText() }.isEqualTo("value")
+                            it.transform { it["value"].asInt() }.isEqualTo(30)
+                        }
+                        any {
+                            it.transform { it["statistic"].asText() }.isEqualTo("mean")
+                            it.transform { it["value"].asInt() }.isEqualTo(22)
+                        }
+                        any {
+                            it.transform { it["statistic"].asText() }.isEqualTo("total")
+                            it.transform { it["value"].asDouble() }.isEqualTo(173.0)
+                        }
+                        any {
+                            it.transform { it["statistic"].asText() }.isEqualTo("max")
+                            it.transform { it["value"].asDouble() }.isEqualTo(42.0)
+                        }
+                        any {
+                            it.transform { it["statistic"].asText() }.isEqualTo("percentile")
+                            it.transform { it["percentile"].asDouble() }.isEqualTo(85.0)
+                            it.transform { it["value"].asDouble() }.isEqualTo(42.0)
+                        }
+                        any {
+                            it.transform { it["statistic"].asText() }.isEqualTo("percentile")
+                            it.transform { it["percentile"].asDouble() }.isEqualTo(50.0)
+                            it.transform { it["value"].asDouble() }.isEqualTo(30.0)
+                        }
+                    }
+                    transform { it["tags"] as ObjectNode }.all {
+                        transform { it.size() }.isEqualTo(5)
+                        transform { it["campaign"].asText() }.isEqualTo("CEAD@E28339")
+                        transform { it["scenario"].asText() }.isEqualTo("sixth scenario")
+                        transform { it["step"].asText() }.isEqualTo("step number six")
+                        transform { it["a"].asText() }.isEqualTo("b")
+                        transform { it["c"].asText() }.isEqualTo("d")
+                    }
+                }
+            }
         }
 
         // Test the search by statistics type.
@@ -417,7 +487,46 @@ internal abstract class AbstractElasticsearchMeasurementPublisherIntegrationTest
                 DistributionMeasurementMetric(548.5, Statistic.PERCENTILE, 74.5),
             )
         }
-        return listOf(countSnapshot, gaugeSnapshot, timerSnapshot, summarySnapshot)
+        val rateSnapshot = mockk<MeterSnapshot> {
+            every { timestamp } returns now
+            every { meterId } returns Meter.Id(
+                "my Rate",
+                MeterType.RATE,
+                mapOf(
+                    "scenario" to "fifth scenario",
+                    "campaign" to "campaign 39",
+                    "step" to "step number five",
+                    "foo" to "bar",
+                    "local" to "host"
+                )
+            )
+            every { measurements } returns listOf(
+                MeasurementMetric(2.0, Statistic.VALUE)
+            )
+        }
+        val throughputSnapshot = mockk<MeterSnapshot> {
+            every { timestamp } returns now
+            every { meterId } returns Meter.Id(
+                "throughput",
+                MeterType.THROUGHPUT,
+                mapOf(
+                    "scenario" to "sixth scenario",
+                    "campaign" to "CEAD@E28339",
+                    "step" to "step number six",
+                    "a" to "b",
+                    "c" to "d"
+                )
+            )
+            every { measurements } returns listOf(
+                MeasurementMetric(30.0, Statistic.VALUE),
+                MeasurementMetric(22.0, Statistic.MEAN),
+                MeasurementMetric(173.0, Statistic.TOTAL),
+                MeasurementMetric(42.0, Statistic.MAX),
+                DistributionMeasurementMetric(42.0, Statistic.PERCENTILE, 85.0),
+                DistributionMeasurementMetric(30.0, Statistic.PERCENTILE, 50.0),
+            )
+        }
+        return listOf(countSnapshot, gaugeSnapshot, timerSnapshot, summarySnapshot, rateSnapshot, throughputSnapshot)
     }
 
     private fun requestEvents(): ObjectNode {

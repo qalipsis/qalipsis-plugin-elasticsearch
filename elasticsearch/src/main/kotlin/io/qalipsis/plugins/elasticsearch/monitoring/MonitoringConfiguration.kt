@@ -17,7 +17,6 @@
 package io.qalipsis.plugins.elasticsearch.monitoring;
 
 import io.micronaut.core.annotation.Nullable
-import io.qalipsis.api.constraints.PositiveDuration
 import javax.validation.constraints.Min
 import javax.validation.constraints.NotBlank
 import javax.validation.constraints.NotEmpty
@@ -51,7 +50,6 @@ internal interface MonitoringConfiguration {
     var indexPrefix: String
 
     @get:NotBlank
-    @get:PositiveDuration
     var refreshInterval: String
 
     @get:NotNull

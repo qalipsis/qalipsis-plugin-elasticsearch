@@ -91,7 +91,7 @@ internal class ElasticsearchPollStepSpecificationConverter(
         val mapper = JsonMapper()
         mapper.registerModule(BeanIntrospectionModule())
         mapper.registerModule(JavaTimeModule())
-        mapper.registerModule(KotlinModule())
+        mapper.registerModule(KotlinModule.Builder().build())
         mapper.registerModule(Jdk8Module())
         spec.mapper(mapper)
         return mapper

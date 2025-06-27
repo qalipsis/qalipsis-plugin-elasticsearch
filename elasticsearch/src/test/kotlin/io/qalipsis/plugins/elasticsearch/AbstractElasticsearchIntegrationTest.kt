@@ -36,7 +36,7 @@ internal abstract class AbstractElasticsearchIntegrationTest {
 
     protected val jsonMapper = JsonMapper().also {
         it.registerModule(JavaTimeModule())
-        it.registerModule(KotlinModule())
+        it.registerModule(KotlinModule.Builder().build())
         it.registerModule(Jdk8Module())
     }
 
